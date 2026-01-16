@@ -36,18 +36,12 @@ body {
     border-radius: 0.5rem;
     cursor: pointer;
     transition: all 0.3s;
+    font-size: 0.875rem;
 }
 
 .btn-ghost:hover {
     border-color: rgba(255, 255, 255, 0.3);
     color: white;
-}
-
-.input-dark {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: white;
-    padding: 0.5rem;
 }
 
 .status-pill {
@@ -78,25 +72,25 @@ body {
 }
 
 .traffic-light {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .red-on {
     background: #ff3b3b !important;
-    box-shadow: 0 0 20px #ff3b3b, 0 0 40px rgba(255, 59, 59, 0.5);
+    box-shadow: 0 0 15px #ff3b3b, 0 0 30px rgba(255, 59, 59, 0.5);
 }
 
 .yellow-on {
     background: #ffeb3b !important;
-    box-shadow: 0 0 20px #ffeb3b, 0 0 40px rgba(255, 235, 59, 0.5);
+    box-shadow: 0 0 15px #ffeb3b, 0 0 30px rgba(255, 235, 59, 0.5);
 }
 
 .green-on {
     background: #00f5a0 !important;
-    box-shadow: 0 0 20px #00f5a0, 0 0 40px rgba(0, 245, 160, 0.5);
+    box-shadow: 0 0 15px #00f5a0, 0 0 30px rgba(0, 245, 160, 0.5);
 }
 
 .active-pulse {
@@ -115,25 +109,88 @@ body {
     }
 }
 
+/* Two-way road styling */
+.road-container {
+    position: relative;
+    background: rgba(40, 40, 40, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.road-vertical {
+    width: 80px;
+    height: 200px;
+}
+
+.road-horizontal {
+    width: 200px;
+    height: 80px;
+}
+
+.lane {
+    position: absolute;
+    overflow: visible;
+}
+
+.lane-v-left {
+    left: 5px;
+    width: 35px;
+    height: 100%;
+}
+
+.lane-v-right {
+    right: 5px;
+    width: 35px;
+    height: 100%;
+}
+
+.lane-h-top {
+    top: 5px;
+    width: 100%;
+    height: 35px;
+}
+
+.lane-h-bottom {
+    bottom: 5px;
+    width: 100%;
+    height: 35px;
+}
+
+.road-divider-v {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: repeating-linear-gradient(to bottom,
+            rgba(255, 255, 255, 0.3) 0px,
+            rgba(255, 255, 255, 0.3) 10px,
+            transparent 10px,
+            transparent 20px);
+}
+
+.road-divider-h {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: repeating-linear-gradient(to right,
+            rgba(255, 255, 255, 0.3) 0px,
+            rgba(255, 255, 255, 0.3) 10px,
+            transparent 10px,
+            transparent 20px);
+}
+
 .car {
     position: absolute;
-    font-size: 24px;
-    transition: transform 0.1s linear;
+    font-size: 20px;
+    transition: none;
+    z-index: 10;
 }
 
-.lane-anim {
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.05));
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.5rem;
-    overflow: hidden;
-    position: relative;
-}
-
-.log-item {
-    padding: 0.5rem;
-    border-radius: 0.25rem;
-    background: rgba(255, 255, 255, 0.02);
-    font-size: 0.8rem;
+.intersection-center {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.4), rgba(255, 255, 255, 0.02));
+    border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .text-muted {
@@ -148,4 +205,94 @@ body {
     height: 4px;
     background: linear-gradient(90deg, #7c5cff, #00f5a0, #00e0ff);
     border-radius: 2px;
+}
+
+.metrics-table {
+    font-size: 0.75rem;
+    width: 100%;
+}
+
+.metrics-table th {
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-weight: 600;
+}
+
+.metrics-table td {
+    padding: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.gantt-container {
+    overflow-x: auto;
+    max-height: 300px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+.gantt-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+}
+
+.gantt-label {
+    width: 60px;
+    font-weight: 600;
+}
+
+.gantt-timeline {
+    flex: 1;
+    display: flex;
+    gap: 2px;
+}
+
+.gantt-block {
+    height: 24px;
+    min-width: 8px;
+    border-radius: 2px;
+    position: relative;
+}
+
+.gantt-green {
+    background: #00f5a0;
+}
+
+.gantt-yellow {
+    background: #ffeb3b;
+}
+
+.gantt-red {
+    background: rgba(255, 59, 59, 0.3);
+}
+
+.panel {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.log-item {
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    background: rgba(255, 255, 255, 0.02);
+    font-size: 0.75rem;
+    border-left: 2px solid rgba(124, 92, 255, 0.3);
+}
+
+.log-item.success {
+    border-left-color: #00f5a0;
+    color: #a8f5d4;
+}
+
+.log-item.warning {
+    border-left-color: #ffeb3b;
+    color: #fff4b8;
+}
+
+.log-item.error {
+    border-left-color: #ff3b3b;
+    color: #ffb8b8;
 }

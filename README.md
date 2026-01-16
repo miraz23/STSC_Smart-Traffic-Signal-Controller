@@ -1,2 +1,2 @@
-# SMART-TRAFFIC-SIGNAL-CONTROLLER-OS-Scheduling-Driven-Intersection-Management.-
+# SMART-TRAFFIC-SIGNAL-CONTROLLER-OS-Scheduling-Driven-Management.
 The Smart Traffic Signal Controller is a JavaScript programming-based project that uses Operating System scheduling algorithms to manage traffic at road intersections. Each road is treated like a process, and algorithms such as Round Robin, Priority Scheduling, and a Hybrid approach are used to decide which signal turns green next.

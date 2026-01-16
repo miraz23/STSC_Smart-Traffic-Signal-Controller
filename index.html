@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>4-Way Intelligent Traffic Controller — Neon Dark</title>
+    <title>4-Way Intelligent Traffic Controller — Two-Way Roads</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -16,8 +16,9 @@
         <!-- Header -->
         <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-                <h1 class="text-3xl font-extrabold">4-Way Intelligent Traffic Controller</h1>
-                <p class="subtitle text-sm mt-1">Neon dark theme • Round-robin scheduling • Emergency controls</p>
+                <h1 class="text-3xl font-extrabold">4-Way Traffic Controller — Two-Way Roads</h1>
+                <p class="subtitle text-sm mt-1">Real-world simulation with comprehensive metrics & Gantt visualization
+                </p>
                 <div class="mt-3 w-40 accent-strip"></div>
             </div>
             <div class="flex gap-3 items-center">
@@ -27,192 +28,277 @@
         </header>
 
         <!-- Controls -->
-        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="card p-4 rounded-xl">
-                <h3 class="font-bold mb-2">Simulation</h3>
+                <h3 class="font-bold mb-3">Simulation Controls</h3>
                 <div class="space-y-3">
                     <div class="flex items-center gap-3">
                         <label class="text-sm w-28 text-muted">Speed</label>
                         <input id="speed-range" type="range" min="0.5" max="2" step="0.25" value="1" class="w-full" />
-                        <span id="speed-display" class="text-sm">1x</span>
+                        <span id="speed-display" class="text-sm w-12">1x</span>
                     </div>
                     <div class="flex items-center gap-3">
                         <label class="text-sm w-28 text-muted">Quantum</label>
                         <input id="quantum-range" type="range" min="2" max="10" step="1" value="4" class="w-full" />
-                        <span id="quantum-display" class="text-sm">4s</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button id="emergency-btn" class="btn-ghost text-red-400 border-red-400">Emergency
-                            (North)</button>
+                        <span id="quantum-display" class="text-sm w-12">4 ticks</span>
                     </div>
                     <div class="flex gap-2">
-                        <button id="export-log" class="btn-ghost flex-1">Export Log</button>
-                        <button id="clear-log" class="btn-ghost">Clear</button>
+                        <button id="emergency-btn" class="btn-ghost text-red-400 border-red-400 flex-1">Emergency
+                            (North)</button>
+                        <button id="clear-log" class="btn-ghost">Reset</button>
                     </div>
                 </div>
             </div>
 
             <div class="card p-4 rounded-xl">
-                <h3 class="font-bold mb-2">Queue Control</h3>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="panel p-3 rounded-lg"
-                        style="background:linear-gradient(180deg, rgba(0,245,160,0.1), rgba(0,245,160,0.02)); border:1px solid rgba(0,245,160,0.2)">
-                        <div class="text-xs text-muted mb-1">NORTH</div>
-                        <div id="n-count" class="text-xl font-bold">0</div>
-                        <div class="flex gap-1 mt-2">
-                            <button class="add-queue btn-ghost text-xs px-2 py-1" data-dir="0">+3</button>
-                            <button class="clear-queue btn-ghost text-xs px-2 py-1" data-dir="0">Clear</button>
-                        </div>
-                        <input type="range" class="arrival-rate w-full mt-2" data-dir="0" min="0" max="1" step="0.05"
-                            value="0.6" />
-                        <div class="text-xs text-muted">Rate: <span class="rate-display">0.60</span></div>
+                <h3 class="font-bold mb-3">Quick Stats</h3>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <div class="text-muted">Current Light</div>
+                        <div id="current-dir" class="font-bold text-lg">NONE</div>
                     </div>
-
-                    <div class="panel p-3 rounded-lg"
-                        style="background:linear-gradient(180deg, rgba(0,224,255,0.1), rgba(0,224,255,0.02)); border:1px solid rgba(0,224,255,0.2)">
-                        <div class="text-xs text-muted mb-1">SOUTH</div>
-                        <div id="s-count" class="text-xl font-bold">0</div>
-                        <div class="flex gap-1 mt-2">
-                            <button class="add-queue btn-ghost text-xs px-2 py-1" data-dir="1">+3</button>
-                            <button class="clear-queue btn-ghost text-xs px-2 py-1" data-dir="1">Clear</button>
-                        </div>
-                        <input type="range" class="arrival-rate w-full mt-2" data-dir="1" min="0" max="1" step="0.05"
-                            value="0.55" />
-                        <div class="text-xs text-muted">Rate: <span class="rate-display">0.55</span></div>
+                    <div>
+                        <div class="text-muted">Total Served</div>
+                        <div id="total-served" class="font-bold text-lg">0</div>
                     </div>
-
-                    <div class="panel p-3 rounded-lg"
-                        style="background:linear-gradient(180deg, rgba(124,92,255,0.1), rgba(124,92,255,0.02)); border:1px solid rgba(124,92,255,0.2)">
-                        <div class="text-xs text-muted mb-1">EAST</div>
-                        <div id="e-count" class="text-xl font-bold">0</div>
-                        <div class="flex gap-1 mt-2">
-                            <button class="add-queue btn-ghost text-xs px-2 py-1" data-dir="2">+3</button>
-                            <button class="clear-queue btn-ghost text-xs px-2 py-1" data-dir="2">Clear</button>
-                        </div>
-                        <input type="range" class="arrival-rate w-full mt-2" data-dir="2" min="0" max="1" step="0.05"
-                            value="0.4" />
-                        <div class="text-xs text-muted">Rate: <span class="rate-display">0.40</span></div>
+                    <div>
+                        <div class="text-muted">Avg Wait Time</div>
+                        <div id="avg-wait" class="font-bold text-lg">0.0s</div>
                     </div>
-
-                    <div class="panel p-3 rounded-lg"
-                        style="background:linear-gradient(180deg, rgba(255,59,59,0.1), rgba(255,59,59,0.02)); border:1px solid rgba(255,59,59,0.2)">
-                        <div class="text-xs text-muted mb-1">WEST</div>
-                        <div id="w-count" class="text-xl font-bold">0</div>
-                        <div class="flex gap-1 mt-2">
-                            <button class="add-queue btn-ghost text-xs px-2 py-1" data-dir="3">+3</button>
-                            <button class="clear-queue btn-ghost text-xs px-2 py-1" data-dir="3">Clear</button>
-                        </div>
-                        <input type="range" class="arrival-rate w-full mt-2" data-dir="3" min="0" max="1" step="0.05"
-                            value="0.35" />
-                        <div class="text-xs text-muted">Rate: <span class="rate-display">0.35</span></div>
+                    <div>
+                        <div class="text-muted">Simulation Tick</div>
+                        <div id="sim-tick" class="font-bold text-lg">0</div>
                     </div>
-                </div>
-            </div>
-
-            <div class="card p-4 rounded-xl">
-                <h3 class="font-bold mb-2">Analytics</h3>
-                <div class="h-40">
-                    <canvas id="queueChart" class="w-full h-full"></canvas>
-                </div>
-                <div class="mt-3 text-xs text-muted space-y-1">
-                    <div>Current: <span id="current-dir" class="text-white font-bold">NONE</span></div>
-                    <div>Total Served: <span id="total-served">0</span></div>
-                    <div>Avg Wait: <span id="avg-wait">0.0</span>s</div>
                 </div>
             </div>
         </section>
 
-        <!-- 4-Way Intersection Visual -->
+        <!-- 4-Way Intersection with Two-Way Roads -->
         <section class="card p-6 rounded-xl">
-            <h3 class="font-bold mb-4 text-soft">4-Way Intersection</h3>
-            <div class="grid grid-cols-3 gap-4 items-center">
-                <!-- North -->
+            <h3 class="font-bold mb-4 text-soft">4-Way Intersection — Two-Way Roads</h3>
+            <div class="grid grid-cols-3 gap-4 items-center justify-items-center">
+                <!-- North Road -->
                 <div class="col-start-2 flex flex-col items-center space-y-2">
-                    <div class="text-sm text-muted">North</div>
-                    <div class="lane-anim w-32 h-12" id="lane-N"></div>
+                    <div class="text-xs text-muted font-semibold">NORTH ↑↓</div>
+                    <div class="road-container road-vertical rounded-lg" id="road-N">
+                        <div class="road-divider-v"></div>
+                        <div class="lane lane-v-left" id="lane-N-in"></div>
+                        <div class="lane lane-v-right" id="lane-N-out"></div>
+                    </div>
                 </div>
 
-                <!-- West -->
+                <!-- West Road -->
                 <div class="col-start-1 row-start-2 flex flex-col items-center space-y-2">
-                    <div class="text-sm text-muted">West</div>
-                    <div class="lane-anim w-32 h-12" id="lane-W"></div>
+                    <div class="text-xs text-muted font-semibold">WEST</div>
+                    <div class="text-xs text-muted font-semibold">
+                        ←
+                    </div>
+                    <div class="road-container road-horizontal rounded-lg" id="road-W">
+                        <div class="road-divider-h"></div>
+                        <div class="lane lane-h-top" id="lane-W-in"></div>
+                        <div class="lane lane-h-bottom" id="lane-W-out"></div>
+                    </div>
+                    <div class="text-xs text-muted font-semibold">
+                        →
+                    </div>
                 </div>
 
                 <!-- Center Intersection -->
                 <div class="col-start-2 row-start-2 flex justify-center items-center">
-                    <div class="relative w-48 h-48 rounded-xl flex items-center justify-center"
-                        style="background:linear-gradient(180deg, rgba(0,0,0,0.4), rgba(255,255,255,0.02)); border:2px solid rgba(255,255,255,0.1);">
-                        <!-- North Signal (Top) -->
+                    <div class="relative w-48 h-48 rounded-xl flex items-center justify-center intersection-center">
+                        <!-- North Signal -->
                         <div class="absolute top-2 left-1/2 transform -translate-x-1/2 flex gap-1">
                             <div class="traffic-light rounded-full" id="n-red"></div>
                             <div class="traffic-light rounded-full" id="n-yellow"></div>
                             <div class="traffic-light rounded-full" id="n-green"></div>
                         </div>
-
-                        <!-- East Signal (Right) -->
+                        <!-- East Signal -->
                         <div class="absolute right-2 top-1/2 transform -translate-y-1/2 flex flex-col gap-1">
                             <div class="traffic-light rounded-full" id="e-red"></div>
                             <div class="traffic-light rounded-full" id="e-yellow"></div>
                             <div class="traffic-light rounded-full" id="e-green"></div>
                         </div>
-
-                        <!-- South Signal (Bottom) -->
+                        <!-- South Signal -->
                         <div class="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
                             <div class="traffic-light rounded-full" id="s-red"></div>
                             <div class="traffic-light rounded-full" id="s-yellow"></div>
                             <div class="traffic-light rounded-full" id="s-green"></div>
                         </div>
-
-                        <!-- West Signal (Left) -->
+                        <!-- West Signal -->
                         <div class="absolute left-2 top-1/2 transform -translate-y-1/2 flex flex-col gap-1">
                             <div class="traffic-light rounded-full" id="w-red"></div>
                             <div class="traffic-light rounded-full" id="w-yellow"></div>
                             <div class="traffic-light rounded-full" id="w-green"></div>
                         </div>
-
-                        <div class="text-sm text-muted">Intersection</div>
+                        <div class="text-xs text-muted">Intersection</div>
                     </div>
                 </div>
 
-                <!-- East -->
+                <!-- East Road -->
                 <div class="col-start-3 row-start-2 flex flex-col items-center space-y-2">
-                    <div class="text-sm text-muted">East</div>
-                    <div class="lane-anim w-32 h-12" id="lane-E"></div>
+                    <div class="text-xs text-muted font-semibold">EAST</div>
+                    <div class="text-xs text-muted font-semibold">
+                        ←
+                    </div>
+                    <div class="road-container road-horizontal rounded-lg" id="road-E">
+                        <div class="road-divider-h"></div>
+                        <div class="lane lane-h-top" id="lane-E-in"></div>
+                        <div class="lane lane-h-bottom" id="lane-E-out"></div>
+                    </div>
+                    <div class="text-xs text-muted font-semibold">
+                        →
+                    </div>
                 </div>
 
-                <!-- South -->
+                <!-- South Road -->
                 <div class="col-start-2 row-start-3 flex flex-col items-center space-y-2">
-                    <div class="text-sm text-muted">South</div>
-                    <div class="lane-anim w-32 h-12" id="lane-S"></div>
+                    <div class="text-xs text-muted font-semibold">SOUTH ↑↓</div>
+                    <div class="road-container road-vertical rounded-lg" id="road-S">
+                        <div class="road-divider-v"></div>
+                        <div class="lane lane-v-left" id="lane-S-in"></div>
+                        <div class="lane lane-v-right" id="lane-S-out"></div>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- Event Log -->
-        <section class="card p-4 rounded-xl">
-            <div class="flex justify-between items-center mb-3">
-                <h3 class="font-bold text-soft">Event Log</h3>
-                <div class="text-xs text-muted">Recent events</div>
+        <!-- Metrics Tables -->
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="card p-4 rounded-xl">
+                <h3 class="font-bold mb-3 text-soft">Approach Metrics (N, S, E, W)</h3>
+                <div class="overflow-auto">
+                    <table class="metrics-table">
+                        <thead>
+                            <tr>
+                                <th>Direction</th>
+                                <th>Queue</th>
+                                <th>Served</th>
+                                <th>Avg Wait</th>
+                                <th>Avg TAT</th>
+                                <th>Priority</th>
+                            </tr>
+                        </thead>
+                        <tbody id="metrics-tbody">
+                            <tr>
+                                <td class="font-semibold">NORTH</td>
+                                <td id="m-n-queue">0</td>
+                                <td id="m-n-served">0</td>
+                                <td id="m-n-wait">0.0</td>
+                                <td id="m-n-tat">0.0</td>
+                                <td id="m-n-prio">4.0</td>
+                            </tr>
+                            <tr>
+                                <td class="font-semibold">SOUTH</td>
+                                <td id="m-s-queue">0</td>
+                                <td id="m-s-served">0</td>
+                                <td id="m-s-wait">0.0</td>
+                                <td id="m-s-tat">0.0</td>
+                                <td id="m-s-prio">3.0</td>
+                            </tr>
+                            <tr>
+                                <td class="font-semibold">EAST</td>
+                                <td id="m-e-queue">0</td>
+                                <td id="m-e-served">0</td>
+                                <td id="m-e-wait">0.0</td>
+                                <td id="m-e-tat">0.0</td>
+                                <td id="m-e-prio">2.0</td>
+                            </tr>
+                            <tr>
+                                <td class="font-semibold">WEST</td>
+                                <td id="m-w-queue">0</td>
+                                <td id="m-w-served">0</td>
+                                <td id="m-w-wait">0.0</td>
+                                <td id="m-w-tat">0.0</td>
+                                <td id="m-w-prio">1.0</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div id="log" class="h-48 overflow-auto space-y-1 p-2" style="border-top:1px solid rgba(255,255,255,0.05)">
+
+            <div class="card p-4 rounded-xl">
+                <h3 class="font-bold mb-3 text-soft">Recent Cars (Last 5)</h3>
+                <div class="overflow-auto">
+                    <table class="metrics-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Dir</th>
+                                <th>Arrival</th>
+                                <th>Start</th>
+                                <th>Wait</th>
+                                <th>TAT</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cars-tbody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">No cars yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
+
+            <!-- Gantt Chart -->
+            <section class="card p-4 rounded-xl">
+                <h3 class="font-bold mb-3 text-soft">Gantt Chart — Last 50 Ticks</h3>
+                <div class="gantt-container">
+                    <div class="gantt-row">
+                        <div class="gantt-label">NORTH</div>
+                        <div class="gantt-timeline" id="gantt-N"></div>
+                    </div>
+                    <div class="gantt-row">
+                        <div class="gantt-label">SOUTH</div>
+                        <div class="gantt-timeline" id="gantt-S"></div>
+                    </div>
+                    <div class="gantt-row">
+                        <div class="gantt-label">EAST</div>
+                        <div class="gantt-timeline" id="gantt-E"></div>
+                    </div>
+                    <div class="gantt-row">
+                        <div class="gantt-label">WEST</div>
+                        <div class="gantt-timeline" id="gantt-W"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Event Log -->
+            <section class="card p-4 rounded-xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-soft">Event Log</h3>
+                    <div class="flex gap-2">
+                        <button id="export-log" class="btn-ghost text-xs">Export CSV</button>
+                        <button id="clear-event-log" class="btn-ghost text-xs">Clear Log</button>
+                    </div>
+                </div>
+                <div id="log" class="h-48 overflow-auto space-y-1 p-2 rounded"
+                    style="border:1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.2);">
+                </div>
+            </section>
         </section>
     </div>
 
     <script>
-        // Configuration
         const NUM_DIRECTIONS = 4;
         const DIRECTIONS = ['NORTH', 'SOUTH', 'EAST', 'WEST'];
+        const DIR_SHORT = ['N', 'S', 'E', 'W'];
         const DEFAULT_QUANTUM = 4;
         const YELLOW_DURATION = 2;
         const ALL_RED_DURATION = 1;
 
         // State
-        const queues = [3, 4, 2, 3]; // N, S, E, W
+        const queues = [3, 4, 2, 3];
         const arrivalRates = [0.6, 0.55, 0.4, 0.35];
         const served = [0, 0, 0, 0];
         const totalWait = [0, 0, 0, 0];
+        const totalTAT = [0, 0, 0, 0];
         const ageTicks = [0, 0, 0, 0];
+        const staticPrio = [4, 3, 2, 1];
+        const dynamicPrio = [4, 3, 2, 1];
+
+        let carIdCounter = 0;
+        const recentCars = [];
+        const ganttData = [[], [], [], []];
 
         let running = false;
         let simSpeed = 1;
@@ -225,7 +311,6 @@
         let isAllRed = false;
         let rrIndex = 0;
         let simTick = 0;
-        let eventLog = [];
         let tickInterval = null;
 
         // DOM Elements
@@ -236,36 +321,12 @@
         const quantumRange = document.getElementById('quantum-range');
         const quantumDisplay = document.getElementById('quantum-display');
         const emergencyBtn = document.getElementById('emergency-btn');
-        const exportLogBtn = document.getElementById('export-log');
         const clearLogBtn = document.getElementById('clear-log');
+        const exportLogBtn = document.getElementById('export-log');
+        const clearEventLogBtn = document.getElementById('clear-event-log');
         const logEl = document.getElementById('log');
-        const queueChart = new Chart(document.getElementById('queueChart').getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: ['N', 'S', 'E', 'W'],
-                datasets: [{
-                    label: 'Queue',
-                    data: [0, 0, 0, 0],
-                    backgroundColor: ['#00f5a0', '#00e0ff', '#7c5cff', '#ff3b3b'],
-                    borderRadius: 4,
-                }]
-            },
-            options: {
-                animation: { duration: 200 },
-                scales: {
-                    y: { beginAtZero: true, suggestedMax: 15, ticks: { color: '#9fb1c9' } },
-                    x: { ticks: { color: '#9fb1c9' } }
-                },
-                plugins: { legend: { display: false } }
-            }
-        });
 
-        const countEls = [
-            document.getElementById('n-count'),
-            document.getElementById('s-count'),
-            document.getElementById('e-count'),
-            document.getElementById('w-count')
-        ];
+        let eventLog = [];
 
         const lightEls = {
             red: ['n-red', 's-red', 'e-red', 'w-red'].map(id => document.getElementById(id)),
@@ -273,29 +334,60 @@
             green: ['n-green', 's-green', 'e-green', 'w-green'].map(id => document.getElementById(id))
         };
 
-        const laneEls = ['lane-N', 'lane-S', 'lane-E', 'lane-W'].map(id => document.getElementById(id));
+        const laneInEls = DIRECTIONS.map((d, i) =>
+            document.getElementById(`lane-${DIR_SHORT[i]}-in`)
+        );
+        const laneOutEls = DIRECTIONS.map((d, i) =>
+            document.getElementById(`lane-${DIR_SHORT[i]}-out`)
+        );
 
-        // Functions
-        function logEvent(text, level = 'info') {
-            const t = new Date().toLocaleTimeString();
-            const item = document.createElement('div');
-            item.className = 'log-item ' + (level === 'error' ? 'text-red-300' : 'text-muted');
-            item.textContent = `[${t}] ${text}`;
-            logEl.prepend(item);
-            eventLog.unshift({ time: new Date().toISOString(), text });
-            if (logEl.children.length > 100) logEl.removeChild(logEl.lastChild);
+        function logEvent(message, level = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logItem = document.createElement('div');
+            logItem.className = `log-item ${level}`;
+            logItem.textContent = `[${timestamp}] Tick ${simTick}: ${message}`;
+
+            logEl.insertBefore(logItem, logEl.firstChild);
+
+            eventLog.unshift({ timestamp, tick: simTick, message, level });
+
+            if (logEl.children.length > 100) {
+                logEl.removeChild(logEl.lastChild);
+            }
         }
 
-        function spawnCar(laneEl, dir) {
+        function spawnCar(dir, isIncoming = true) {
+            const laneEl = isIncoming ? laneInEls[dir] : laneOutEls[dir];
+            if (!laneEl) return;
+
             const car = document.createElement('div');
             car.className = 'car';
             car.textContent = '🚗';
-            car.style.left = '-30px';
-            car.style.top = Math.random() * 10 + 'px';
+
+            const isVertical = dir === 0 || dir === 1;
+
+            if (isIncoming) {
+                if (isVertical) {
+                    car.style.top = dir === 0 ? '-25px' : '100%';
+                    car.style.left = Math.random() * 10 + 'px';
+                } else {
+                    car.style.left = dir === 2 ? '-25px' : '100%';
+                    car.style.top = Math.random() * 10 + 'px';
+                }
+            } else {
+                if (isVertical) {
+                    car.style.top = '50%';
+                    car.style.left = Math.random() * 10 + 'px';
+                } else {
+                    car.style.left = '50%';
+                    car.style.top = Math.random() * 10 + 'px';
+                }
+            }
+
             laneEl.appendChild(car);
 
             const start = performance.now();
-            const duration = 1000 / simSpeed;
+            const duration = isIncoming ? 1500 / simSpeed : 1000 / simSpeed;
 
             function animate(now) {
                 const t = (now - start) / duration;
@@ -303,15 +395,26 @@
                     if (car.parentElement) car.parentElement.removeChild(car);
                     return;
                 }
-                const x = t * (laneEl.clientWidth + 60) - 30;
-                car.style.transform = `translateX(${x}px)`;
+
+                if (isVertical) {
+                    const startY = dir === 0 ? -25 : (isIncoming ? 225 : 100);
+                    const endY = isIncoming ? 100 : (dir === 0 ? 225 : -25);
+                    const y = startY + (endY - startY) * t;
+                    car.style.top = y + 'px';
+                } else {
+                    const startX = dir === 2 ? -25 : (isIncoming ? 225 : 100);
+                    const endX = isIncoming ? 100 : (dir === 2 ? 225 : -25);
+                    const x = startX + (endX - startX) * t;
+                    car.style.left = x + 'px';
+                }
+
                 requestAnimationFrame(animate);
             }
             requestAnimationFrame(animate);
         }
 
         function poissonArrival(rate) {
-            return Math.random() < rate ? 1 : 0;
+            return Math.random() < rate * 0.5 ? 1 : 0;
         }
 
         function pickNextRR() {
@@ -328,12 +431,34 @@
 
         function serveVehicle(dir) {
             if (queues[dir] > 0) {
+                const arrivalTime = simTick - ageTicks[dir];
+                const startTime = simTick;
+                const completionTime = simTick + 1;
+                const waitTime = ageTicks[dir];
+                const tat = completionTime - arrivalTime;
+
                 queues[dir]--;
                 served[dir]++;
-                totalWait[dir] += ageTicks[dir];
+                totalWait[dir] += waitTime;
+                totalTAT[dir] += tat;
                 ageTicks[dir] = 0;
-                spawnCar(laneEls[dir], dir);
+
+                const carId = `${DIR_SHORT[dir]}${carIdCounter++}`;
+                recentCars.unshift({
+                    id: carId,
+                    dir: DIR_SHORT[dir],
+                    arrival: arrivalTime,
+                    start: startTime,
+                    wait: waitTime,
+                    tat: tat
+                });
+                if (recentCars.length > 5) recentCars.pop();
+
+                spawnCar(dir, false);
+
+                return carId;
             }
+            return null;
         }
 
         function resetLights() {
@@ -344,18 +469,54 @@
             }
         }
 
-        function updateUI() {
-            // Update counts
+        function updateGantt() {
             for (let i = 0; i < NUM_DIRECTIONS; i++) {
-                countEls[i].textContent = queues[i];
+                const timeline = document.getElementById(`gantt-${DIR_SHORT[i]}`);
+                timeline.innerHTML = '';
+
+                ganttData[i].slice(-50).forEach(block => {
+                    const div = document.createElement('div');
+                    div.className = `gantt-block gantt-${block.state.toLowerCase()}`;
+                    if (block.car) {
+                        div.title = `Tick ${block.tick}: ${block.car}`;
+                    }
+                    timeline.appendChild(div);
+                });
+            }
+        }
+
+        function updateMetrics() {
+            const prefixes = ['n', 's', 'e', 'w'];
+            for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                document.getElementById(`m-${prefixes[i]}-queue`).textContent = queues[i];
+                document.getElementById(`m-${prefixes[i]}-served`).textContent = served[i];
+                const avgWait = served[i] > 0 ? (totalWait[i] / served[i]).toFixed(1) : '0.0';
+                const avgTAT = served[i] > 0 ? (totalTAT[i] / served[i]).toFixed(1) : '0.0';
+                document.getElementById(`m-${prefixes[i]}-wait`).textContent = avgWait;
+                document.getElementById(`m-${prefixes[i]}-tat`).textContent = avgTAT;
+                document.getElementById(`m-${prefixes[i]}-prio`).textContent = dynamicPrio[i].toFixed(1);
             }
 
-            // Update chart
-            queueChart.data.datasets[0].data = [...queues];
-            queueChart.update();
+            const carsTbody = document.getElementById('cars-tbody');
+            if (recentCars.length === 0) {
+                carsTbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No cars yet</td></tr>';
+            } else {
+                carsTbody.innerHTML = recentCars.map(car => `
+            <tr>
+                <td class="font-semibold">${car.id}</td>
+                <td>${car.dir}</td>
+                <td>${car.arrival}</td>
+                <td>${car.start}</td>
+                <td>${car.wait}</td>
+                <td>${car.tat}</td>
+            </tr>
+        `).join('');
+            }
+        }
 
-            // Update lights
+        function updateUI() {
             resetLights();
+
             if (isAllRed) {
                 for (let i = 0; i < NUM_DIRECTIONS; i++) {
                     lightEls.red[i].classList.add('red-on');
@@ -376,17 +537,20 @@
                 }
             }
 
-            // Update status
             const phase = isAllRed ? 'ALL-RED' : isYellow ? 'YELLOW' : currentGreen >= 0 ? `${DIRECTIONS[currentGreen]} GREEN` : 'INIT';
             statusPill.textContent = running ? phase : 'Stopped';
             statusPill.classList.toggle('status-running', running);
 
-            // Update stats
             const totalServed = served.reduce((a, b) => a + b, 0);
             const totalWaitTime = totalWait.reduce((a, b) => a + b, 0);
+
             document.getElementById('current-dir').textContent = currentGreen >= 0 ? DIRECTIONS[currentGreen] : 'NONE';
             document.getElementById('total-served').textContent = totalServed;
             document.getElementById('avg-wait').textContent = totalServed > 0 ? (totalWaitTime / totalServed).toFixed(1) : '0.0';
+            document.getElementById('sim-tick').textContent = simTick;
+
+            updateMetrics();
+            updateGantt();
         }
 
         function simTickFn() {
@@ -394,21 +558,21 @@
 
             simTick++;
 
-            // Generate arrivals
             for (let i = 0; i < NUM_DIRECTIONS; i++) {
                 const arrivals = poissonArrival(arrivalRates[i]);
                 if (arrivals > 0) {
                     queues[i] += arrivals;
                     if (queues[i] > 50) queues[i] = 50;
+                    spawnCar(i, true);
                 }
 
-                // Age waiting queues
                 if (i !== currentGreen && queues[i] > 0) {
                     ageTicks[i]++;
                 }
+
+                dynamicPrio[i] = staticPrio[i] + ageTicks[i] * 0.1;
             }
 
-            // Handle ALL-RED phase
             if (isAllRed) {
                 allRedRemaining--;
                 if (allRedRemaining <= 0) {
@@ -416,56 +580,77 @@
                     const next = pickNextRR();
                     currentGreen = next;
                     greenRemaining = timeQuantum;
-                    logEvent(`${DIRECTIONS[next]} now GREEN`);
+                    logEvent(`${DIRECTIONS[next]} light turned GREEN`, 'success');
                 }
+
+                for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                    ganttData[i].push({ tick: simTick, state: 'RED', car: null });
+                }
+
                 updateUI();
                 return;
             }
 
-            // Handle YELLOW phase
             if (isYellow) {
                 yellowRemaining--;
                 if (yellowRemaining <= 0) {
                     isYellow = false;
                     isAllRed = true;
                     allRedRemaining = ALL_RED_DURATION;
-                    logEvent('ALL-RED clearance');
+                    logEvent(`Entering ALL-RED clearance phase`, 'warning');
                 }
+
+                for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                    if (i === currentGreen) {
+                        ganttData[i].push({ tick: simTick, state: 'YELLOW', car: null });
+                    } else {
+                        ganttData[i].push({ tick: simTick, state: 'RED', car: null });
+                    }
+                }
+
                 updateUI();
                 return;
             }
 
-            // Pick next green if needed
             if (currentGreen === -1 || greenRemaining <= 0) {
                 if (currentGreen >= 0) {
                     isYellow = true;
                     yellowRemaining = YELLOW_DURATION;
-                    logEvent(`${DIRECTIONS[currentGreen]} -> YELLOW`);
+                    logEvent(`${DIRECTIONS[currentGreen]} light turned YELLOW`, 'warning');
                 } else {
                     const next = pickNextRR();
                     currentGreen = next;
                     greenRemaining = timeQuantum;
-                    logEvent(`${DIRECTIONS[next]} -> GREEN`);
+                    logEvent(`${DIRECTIONS[next]} light turned GREEN (initial)`, 'success');
                 }
             } else {
-                // Serve vehicle
-                serveVehicle(currentGreen);
+                const carId = serveVehicle(currentGreen);
+                if (carId) {
+                    logEvent(`Car ${carId} served at ${DIRECTIONS[currentGreen]}`, 'success');
+                }
                 greenRemaining--;
+
+                for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                    if (i === currentGreen) {
+                        ganttData[i].push({ tick: simTick, state: 'GREEN', car: carId });
+                    } else {
+                        ganttData[i].push({ tick: simTick, state: 'RED', car: null });
+                    }
+                }
             }
 
             updateUI();
         }
 
-        // Event Listeners
         startStopBtn.addEventListener('click', () => {
             running = !running;
             if (running) {
                 startStopBtn.textContent = 'Stop';
-                logEvent('Simulation started');
+                logEvent('Simulation started', 'success');
                 tickInterval = setInterval(simTickFn, 1000 / simSpeed);
             } else {
                 startStopBtn.textContent = 'Start';
-                logEvent('Simulation stopped');
+                logEvent('Simulation stopped', 'warning');
                 if (tickInterval) clearInterval(tickInterval);
             }
             updateUI();
@@ -482,7 +667,7 @@
 
         quantumRange.addEventListener('input', (e) => {
             timeQuantum = parseInt(e.target.value);
-            quantumDisplay.textContent = timeQuantum + 's';
+            quantumDisplay.textContent = timeQuantum + ' ticks';
         });
 
         emergencyBtn.addEventListener('click', () => {
@@ -490,57 +675,27 @@
             greenRemaining = 8;
             isYellow = false;
             isAllRed = false;
-            logEvent('EMERGENCY: North preemption!', 'error');
             updateUI();
         });
 
-        exportLogBtn.addEventListener('click', () => {
-            if (eventLog.length === 0) return alert('No events');
-            const csv = 'time,event\n' + eventLog.map(e => `${e.time},${e.text}`).join('\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'traffic_log.csv';
-            a.click();
-            URL.revokeObjectURL(url);
-            logEvent('Log exported');
-        });
-
         clearLogBtn.addEventListener('click', () => {
-            eventLog = [];
-            logEl.innerHTML = '';
-            logEvent('Log cleared');
+            simTick = 0;
+            for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                queues[i] = 0;
+                served[i] = 0;
+                totalWait[i] = 0;
+                totalTAT[i] = 0;
+                ageTicks[i] = 0;
+                dynamicPrio[i] = staticPrio[i];
+                ganttData[i] = [];
+            }
+            recentCars.length = 0;
+            carIdCounter = 0;
+            currentGreen = -1;
+            greenRemaining = 0;
+            updateUI();
         });
 
-        // Queue control buttons
-        document.querySelectorAll('.add-queue').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const dir = parseInt(e.target.dataset.dir);
-                queues[dir] += 3;
-                if (queues[dir] > 50) queues[dir] = 50;
-                logEvent(`${DIRECTIONS[dir]} +3 vehicles`);
-                updateUI();
-            });
-        });
-
-        document.querySelectorAll('.clear-queue').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const dir = parseInt(e.target.dataset.dir);
-                queues[dir] = 0;
-                logEvent(`${DIRECTIONS[dir]} queue cleared`);
-                updateUI();
-            });
-        });
-
-        document.querySelectorAll('.arrival-rate').forEach((input, idx) => {
-            input.addEventListener('input', (e) => {
-                arrivalRates[idx] = parseFloat(e.target.value);
-                e.target.nextElementSibling.querySelector('.rate-display').textContent = arrivalRates[idx].toFixed(2);
-            });
-        });
-
-        // Keyboard shortcuts
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 startStopBtn.click();
@@ -551,9 +706,7 @@
             }
         });
 
-        // Initialize
         updateUI();
-        logEvent('4-Way Traffic Controller initialized');
     </script>
 </body>
 
