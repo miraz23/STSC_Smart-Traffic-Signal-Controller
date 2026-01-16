@@ -1,0 +1,46 @@
+{
+    "tick": 54,
+    "current_green": 2,
+    "approaches": [
+        {
+            "id": 0,
+            "queue_len": 1,
+            "arrival_rate": 0.40,
+            "static_prio": 4,
+            "dynamic_prio": 4.00,
+            "served": 11,
+            "age": 1,
+            "starvation": 2
+        },
+        {
+            "id": 1,
+            "queue_len": 3,
+            "arrival_rate": 0.55,
+            "static_prio": 3,
+            "dynamic_prio": 4.80,
+            "served": 12,
+            "age": 10,
+            "starvation": 3
+        },
+        {
+            "id": 2,
+            "queue_len": 6,
+            "arrival_rate": 0.70,
+            "static_prio": 2,
+            "dynamic_prio": 5.40,
+            "served": 10,
+            "age": 0,
+            "starvation": 2
+        },
+        {
+            "id": 3,
+            "queue_len": 23,
+            "arrival_rate": 0.85,
+            "static_prio": 1,
+            "dynamic_prio": 2.00,
+            "served": 8,
+            "age": 6,
+            "starvation": 2
+        }
+    ]
+}

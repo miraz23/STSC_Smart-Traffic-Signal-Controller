@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>4-Way Intelligent Traffic Controller — Neon Dark</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="max-w-7xl mx-auto space-y-6">
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-extrabold">4-Way Intelligent Traffic Controller</h1>
+                <p class="subtitle text-sm mt-1">Neon dark theme • Round-robin scheduling • Emergency controls</p>
+                <div class="mt-3 w-40 accent-strip"></div>
+            </div>
+            <div class="flex gap-3 items-center">
+                <div id="status-pill" class="status-pill">Stopped</div>
+                <button id="start-stop" class="btn-primary">Start</button>
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="card p-4 rounded-xl">
+                <h3 class="font-bold mb-2">Simulation</h3>
+                <div class="space-y-3">
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm w-28 text-muted">Speed</label>
+                        <input id="speed-range" type="range" min="0.5" max="2" step="0.25" value="1" class="w-full" />
+                        <span id="speed-display" class="text-sm">1x</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm w-28 text-muted">Quantum</label>
+                        <input id="quantum-range" type="range" min="2" max="10" step="1" value="4" class="w-full" />
+                        <span id="quantum-display" class="text-sm">4s</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="emergency-btn" class="btn-ghost text-red-400 border-red-400">Emergency
+                            (North)</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="export-log" class="btn-ghost flex-1">Export Log</button>
+                        <button id="clear-log" class="btn-ghost">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card p-4 rounded-xl">
+                <h3 class="font-bold mb-2">Queue Control</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="panel p-3 rounded-lg"
+                        style="background:linear-gradient(180deg, rgba(0,245,160,0.1), rgba(0,245,160,0.02)); border:1px solid rgba(0,245,160,0.2)">
+                        <div class="text-xs text-muted mb-1">NORTH</div>
+                        <div id="n-count" class="text-xl font-bold">0</div>
+                        <div class="flex gap-1 mt-2">
+                            <button class="add-queue btn-ghost text-xs px-2 py-1" data-dir="0">+3</button>
+                            <button class="clear-queue btn-ghost text-xs px-2 py-1" data-dir="0">Clear</button>
+                        </div>
+                        <input type="range" class="arrival-rate w-full mt-2" data-dir="0" min="0" max="1" step="0.05"
+                            value="0.6" />
+                        <div class="text-xs text-muted">Rate: <span class="rate-display">0.60</span></div>
+                    </div>
+
+                    <div class="panel p-3 rounded-lg"
+                        style="background:linear-gradient(180deg, rgba(0,224,255,0.1), rgba(0,224,255,0.02)); border:1px solid rgba(0,224,255,0.2)">
+                        <div class="text-xs text-muted mb-1">SOUTH</div>
+                        <div id="s-count" class="text-xl font-bold">0</div>
+                        <div class="flex gap-1 mt-2">
+                            <button class="add-queue btn-ghost text-xs px-2 py-1" data-dir="1">+3</button>
+                            <button class="clear-queue btn-ghost text-xs px-2 py-1" data-dir="1">Clear</button>
+                        </div>
+                        <input type="range" class="arrival-rate w-full mt-2" data-dir="1" min="0" max="1" step="0.05"
+                            value="0.55" />
+                        <div class="text-xs text-muted">Rate: <span class="rate-display">0.55</span></div>
+                    </div>
+
+                    <div class="panel p-3 rounded-lg"
+                        style="background:linear-gradient(180deg, rgba(124,92,255,0.1), rgba(124,92,255,0.02)); border:1px solid rgba(124,92,255,0.2)">
+                        <div class="text-xs text-muted mb-1">EAST</div>
+                        <div id="e-count" class="text-xl font-bold">0</div>
+                        <div class="flex gap-1 mt-2">
+                            <button class="add-queue btn-ghost text-xs px-2 py-1" data-dir="2">+3</button>
+                            <button class="clear-queue btn-ghost text-xs px-2 py-1" data-dir="2">Clear</button>
+                        </div>
+                        <input type="range" class="arrival-rate w-full mt-2" data-dir="2" min="0" max="1" step="0.05"
+                            value="0.4" />
+                        <div class="text-xs text-muted">Rate: <span class="rate-display">0.40</span></div>
+                    </div>
+
+                    <div class="panel p-3 rounded-lg"
+                        style="background:linear-gradient(180deg, rgba(255,59,59,0.1), rgba(255,59,59,0.02)); border:1px solid rgba(255,59,59,0.2)">
+                        <div class="text-xs text-muted mb-1">WEST</div>
+                        <div id="w-count" class="text-xl font-bold">0</div>
+                        <div class="flex gap-1 mt-2">
+                            <button class="add-queue btn-ghost text-xs px-2 py-1" data-dir="3">+3</button>
+                            <button class="clear-queue btn-ghost text-xs px-2 py-1" data-dir="3">Clear</button>
+                        </div>
+                        <input type="range" class="arrival-rate w-full mt-2" data-dir="3" min="0" max="1" step="0.05"
+                            value="0.35" />
+                        <div class="text-xs text-muted">Rate: <span class="rate-display">0.35</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card p-4 rounded-xl">
+                <h3 class="font-bold mb-2">Analytics</h3>
+                <div class="h-40">
+                    <canvas id="queueChart" class="w-full h-full"></canvas>
+                </div>
+                <div class="mt-3 text-xs text-muted space-y-1">
+                    <div>Current: <span id="current-dir" class="text-white font-bold">NONE</span></div>
+                    <div>Total Served: <span id="total-served">0</span></div>
+                    <div>Avg Wait: <span id="avg-wait">0.0</span>s</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4-Way Intersection Visual -->
+        <section class="card p-6 rounded-xl">
+            <h3 class="font-bold mb-4 text-soft">4-Way Intersection</h3>
+            <div class="grid grid-cols-3 gap-4 items-center">
+                <!-- North -->
+                <div class="col-start-2 flex flex-col items-center space-y-2">
+                    <div class="text-sm text-muted">North</div>
+                    <div class="lane-anim w-32 h-12" id="lane-N"></div>
+                </div>
+
+                <!-- West -->
+                <div class="col-start-1 row-start-2 flex flex-col items-center space-y-2">
+                    <div class="text-sm text-muted">West</div>
+                    <div class="lane-anim w-32 h-12" id="lane-W"></div>
+                </div>
+
+                <!-- Center Intersection -->
+                <div class="col-start-2 row-start-2 flex justify-center items-center">
+                    <div class="relative w-48 h-48 rounded-xl flex items-center justify-center"
+                        style="background:linear-gradient(180deg, rgba(0,0,0,0.4), rgba(255,255,255,0.02)); border:2px solid rgba(255,255,255,0.1);">
+                        <!-- North Signal (Top) -->
+                        <div class="absolute top-2 left-1/2 transform -translate-x-1/2 flex gap-1">
+                            <div class="traffic-light rounded-full" id="n-red"></div>
+                            <div class="traffic-light rounded-full" id="n-yellow"></div>
+                            <div class="traffic-light rounded-full" id="n-green"></div>
+                        </div>
+
+                        <!-- East Signal (Right) -->
+                        <div class="absolute right-2 top-1/2 transform -translate-y-1/2 flex flex-col gap-1">
+                            <div class="traffic-light rounded-full" id="e-red"></div>
+                            <div class="traffic-light rounded-full" id="e-yellow"></div>
+                            <div class="traffic-light rounded-full" id="e-green"></div>
+                        </div>
+
+                        <!-- South Signal (Bottom) -->
+                        <div class="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
+                            <div class="traffic-light rounded-full" id="s-red"></div>
+                            <div class="traffic-light rounded-full" id="s-yellow"></div>
+                            <div class="traffic-light rounded-full" id="s-green"></div>
+                        </div>
+
+                        <!-- West Signal (Left) -->
+                        <div class="absolute left-2 top-1/2 transform -translate-y-1/2 flex flex-col gap-1">
+                            <div class="traffic-light rounded-full" id="w-red"></div>
+                            <div class="traffic-light rounded-full" id="w-yellow"></div>
+                            <div class="traffic-light rounded-full" id="w-green"></div>
+                        </div>
+
+                        <div class="text-sm text-muted">Intersection</div>
+                    </div>
+                </div>
+
+                <!-- East -->
+                <div class="col-start-3 row-start-2 flex flex-col items-center space-y-2">
+                    <div class="text-sm text-muted">East</div>
+                    <div class="lane-anim w-32 h-12" id="lane-E"></div>
+                </div>
+
+                <!-- South -->
+                <div class="col-start-2 row-start-3 flex flex-col items-center space-y-2">
+                    <div class="text-sm text-muted">South</div>
+                    <div class="lane-anim w-32 h-12" id="lane-S"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Event Log -->
+        <section class="card p-4 rounded-xl">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-bold text-soft">Event Log</h3>
+                <div class="text-xs text-muted">Recent events</div>
+            </div>
+            <div id="log" class="h-48 overflow-auto space-y-1 p-2" style="border-top:1px solid rgba(255,255,255,0.05)">
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Configuration
+        const NUM_DIRECTIONS = 4;
+        const DIRECTIONS = ['NORTH', 'SOUTH', 'EAST', 'WEST'];
+        const DEFAULT_QUANTUM = 4;
+        const YELLOW_DURATION = 2;
+        const ALL_RED_DURATION = 1;
+
+        // State
+        const queues = [3, 4, 2, 3]; // N, S, E, W
+        const arrivalRates = [0.6, 0.55, 0.4, 0.35];
+        const served = [0, 0, 0, 0];
+        const totalWait = [0, 0, 0, 0];
+        const ageTicks = [0, 0, 0, 0];
+
+        let running = false;
+        let simSpeed = 1;
+        let timeQuantum = DEFAULT_QUANTUM;
+        let currentGreen = -1;
+        let greenRemaining = 0;
+        let yellowRemaining = 0;
+        let allRedRemaining = 0;
+        let isYellow = false;
+        let isAllRed = false;
+        let rrIndex = 0;
+        let simTick = 0;
+        let eventLog = [];
+        let tickInterval = null;
+
+        // DOM Elements
+        const startStopBtn = document.getElementById('start-stop');
+        const statusPill = document.getElementById('status-pill');
+        const speedRange = document.getElementById('speed-range');
+        const speedDisplay = document.getElementById('speed-display');
+        const quantumRange = document.getElementById('quantum-range');
+        const quantumDisplay = document.getElementById('quantum-display');
+        const emergencyBtn = document.getElementById('emergency-btn');
+        const exportLogBtn = document.getElementById('export-log');
+        const clearLogBtn = document.getElementById('clear-log');
+        const logEl = document.getElementById('log');
+        const queueChart = new Chart(document.getElementById('queueChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['N', 'S', 'E', 'W'],
+                datasets: [{
+                    label: 'Queue',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#00f5a0', '#00e0ff', '#7c5cff', '#ff3b3b'],
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                animation: { duration: 200 },
+                scales: {
+                    y: { beginAtZero: true, suggestedMax: 15, ticks: { color: '#9fb1c9' } },
+                    x: { ticks: { color: '#9fb1c9' } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        const countEls = [
+            document.getElementById('n-count'),
+            document.getElementById('s-count'),
+            document.getElementById('e-count'),
+            document.getElementById('w-count')
+        ];
+
+        const lightEls = {
+            red: ['n-red', 's-red', 'e-red', 'w-red'].map(id => document.getElementById(id)),
+            yellow: ['n-yellow', 's-yellow', 'e-yellow', 'w-yellow'].map(id => document.getElementById(id)),
+            green: ['n-green', 's-green', 'e-green', 'w-green'].map(id => document.getElementById(id))
+        };
+
+        const laneEls = ['lane-N', 'lane-S', 'lane-E', 'lane-W'].map(id => document.getElementById(id));
+
+        // Functions
+        function logEvent(text, level = 'info') {
+            const t = new Date().toLocaleTimeString();
+            const item = document.createElement('div');
+            item.className = 'log-item ' + (level === 'error' ? 'text-red-300' : 'text-muted');
+            item.textContent = `[${t}] ${text}`;
+            logEl.prepend(item);
+            eventLog.unshift({ time: new Date().toISOString(), text });
+            if (logEl.children.length > 100) logEl.removeChild(logEl.lastChild);
+        }
+
+        function spawnCar(laneEl, dir) {
+            const car = document.createElement('div');
+            car.className = 'car';
+            car.textContent = '🚗';
+            car.style.left = '-30px';
+            car.style.top = Math.random() * 10 + 'px';
+            laneEl.appendChild(car);
+
+            const start = performance.now();
+            const duration = 1000 / simSpeed;
+
+            function animate(now) {
+                const t = (now - start) / duration;
+                if (t >= 1) {
+                    if (car.parentElement) car.parentElement.removeChild(car);
+                    return;
+                }
+                const x = t * (laneEl.clientWidth + 60) - 30;
+                car.style.transform = `translateX(${x}px)`;
+                requestAnimationFrame(animate);
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function poissonArrival(rate) {
+            return Math.random() < rate ? 1 : 0;
+        }
+
+        function pickNextRR() {
+            for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                const idx = (rrIndex + i) % NUM_DIRECTIONS;
+                if (queues[idx] > 0) {
+                    rrIndex = (idx + 1) % NUM_DIRECTIONS;
+                    return idx;
+                }
+            }
+            rrIndex = (rrIndex + 1) % NUM_DIRECTIONS;
+            return rrIndex;
+        }
+
+        function serveVehicle(dir) {
+            if (queues[dir] > 0) {
+                queues[dir]--;
+                served[dir]++;
+                totalWait[dir] += ageTicks[dir];
+                ageTicks[dir] = 0;
+                spawnCar(laneEls[dir], dir);
+            }
+        }
+
+        function resetLights() {
+            for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                lightEls.red[i].className = 'traffic-light light-off rounded-full';
+                lightEls.yellow[i].className = 'traffic-light light-off rounded-full';
+                lightEls.green[i].className = 'traffic-light light-off rounded-full';
+            }
+        }
+
+        function updateUI() {
+            // Update counts
+            for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                countEls[i].textContent = queues[i];
+            }
+
+            // Update chart
+            queueChart.data.datasets[0].data = [...queues];
+            queueChart.update();
+
+            // Update lights
+            resetLights();
+            if (isAllRed) {
+                for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                    lightEls.red[i].classList.add('red-on');
+                }
+            } else if (isYellow && currentGreen >= 0) {
+                lightEls.yellow[currentGreen].classList.add('yellow-on');
+                for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                    if (i !== currentGreen) lightEls.red[i].classList.add('red-on');
+                }
+            } else if (currentGreen >= 0) {
+                lightEls.green[currentGreen].classList.add('green-on', 'active-pulse');
+                for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                    if (i !== currentGreen) lightEls.red[i].classList.add('red-on');
+                }
+            } else {
+                for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                    lightEls.red[i].classList.add('red-on');
+                }
+            }
+
+            // Update status
+            const phase = isAllRed ? 'ALL-RED' : isYellow ? 'YELLOW' : currentGreen >= 0 ? `${DIRECTIONS[currentGreen]} GREEN` : 'INIT';
+            statusPill.textContent = running ? phase : 'Stopped';
+            statusPill.classList.toggle('status-running', running);
+
+            // Update stats
+            const totalServed = served.reduce((a, b) => a + b, 0);
+            const totalWaitTime = totalWait.reduce((a, b) => a + b, 0);
+            document.getElementById('current-dir').textContent = currentGreen >= 0 ? DIRECTIONS[currentGreen] : 'NONE';
+            document.getElementById('total-served').textContent = totalServed;
+            document.getElementById('avg-wait').textContent = totalServed > 0 ? (totalWaitTime / totalServed).toFixed(1) : '0.0';
+        }
+
+        function simTickFn() {
+            if (!running) return;
+
+            simTick++;
+
+            // Generate arrivals
+            for (let i = 0; i < NUM_DIRECTIONS; i++) {
+                const arrivals = poissonArrival(arrivalRates[i]);
+                if (arrivals > 0) {
+                    queues[i] += arrivals;
+                    if (queues[i] > 50) queues[i] = 50;
+                }
+
+                // Age waiting queues
+                if (i !== currentGreen && queues[i] > 0) {
+                    ageTicks[i]++;
+                }
+            }
+
+            // Handle ALL-RED phase
+            if (isAllRed) {
+                allRedRemaining--;
+                if (allRedRemaining <= 0) {
+                    isAllRed = false;
+                    const next = pickNextRR();
+                    currentGreen = next;
+                    greenRemaining = timeQuantum;
+                    logEvent(`${DIRECTIONS[next]} now GREEN`);
+                }
+                updateUI();
+                return;
+            }
+
+            // Handle YELLOW phase
+            if (isYellow) {
+                yellowRemaining--;
+                if (yellowRemaining <= 0) {
+                    isYellow = false;
+                    isAllRed = true;
+                    allRedRemaining = ALL_RED_DURATION;
+                    logEvent('ALL-RED clearance');
+                }
+                updateUI();
+                return;
+            }
+
+            // Pick next green if needed
+            if (currentGreen === -1 || greenRemaining <= 0) {
+                if (currentGreen >= 0) {
+                    isYellow = true;
+                    yellowRemaining = YELLOW_DURATION;
+                    logEvent(`${DIRECTIONS[currentGreen]} -> YELLOW`);
+                } else {
+                    const next = pickNextRR();
+                    currentGreen = next;
+                    greenRemaining = timeQuantum;
+                    logEvent(`${DIRECTIONS[next]} -> GREEN`);
+                }
+            } else {
+                // Serve vehicle
+                serveVehicle(currentGreen);
+                greenRemaining--;
+            }
+
+            updateUI();
+        }
+
+        // Event Listeners
+        startStopBtn.addEventListener('click', () => {
+            running = !running;
+            if (running) {
+                startStopBtn.textContent = 'Stop';
+                logEvent('Simulation started');
+                tickInterval = setInterval(simTickFn, 1000 / simSpeed);
+            } else {
+                startStopBtn.textContent = 'Start';
+                logEvent('Simulation stopped');
+                if (tickInterval) clearInterval(tickInterval);
+            }
+            updateUI();
+        });
+
+        speedRange.addEventListener('input', (e) => {
+            simSpeed = parseFloat(e.target.value);
+            speedDisplay.textContent = simSpeed + 'x';
+            if (tickInterval) {
+                clearInterval(tickInterval);
+                tickInterval = setInterval(simTickFn, 1000 / simSpeed);
+            }
+        });
+
+        quantumRange.addEventListener('input', (e) => {
+            timeQuantum = parseInt(e.target.value);
+            quantumDisplay.textContent = timeQuantum + 's';
+        });
+
+        emergencyBtn.addEventListener('click', () => {
+            currentGreen = 0;
+            greenRemaining = 8;
+            isYellow = false;
+            isAllRed = false;
+            logEvent('EMERGENCY: North preemption!', 'error');
+            updateUI();
+        });
+
+        exportLogBtn.addEventListener('click', () => {
+            if (eventLog.length === 0) return alert('No events');
+            const csv = 'time,event\n' + eventLog.map(e => `${e.time},${e.text}`).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'traffic_log.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+            logEvent('Log exported');
+        });
+
+        clearLogBtn.addEventListener('click', () => {
+            eventLog = [];
+            logEl.innerHTML = '';
+            logEvent('Log cleared');
+        });
+
+        // Queue control buttons
+        document.querySelectorAll('.add-queue').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const dir = parseInt(e.target.dataset.dir);
+                queues[dir] += 3;
+                if (queues[dir] > 50) queues[dir] = 50;
+                logEvent(`${DIRECTIONS[dir]} +3 vehicles`);
+                updateUI();
+            });
+        });
+
+        document.querySelectorAll('.clear-queue').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const dir = parseInt(e.target.dataset.dir);
+                queues[dir] = 0;
+                logEvent(`${DIRECTIONS[dir]} queue cleared`);
+                updateUI();
+            });
+        });
+
+        document.querySelectorAll('.arrival-rate').forEach((input, idx) => {
+            input.addEventListener('input', (e) => {
+                arrivalRates[idx] = parseFloat(e.target.value);
+                e.target.nextElementSibling.querySelector('.rate-display').textContent = arrivalRates[idx].toFixed(2);
+            });
+        });
+
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                startStopBtn.click();
+                e.preventDefault();
+            }
+            if (e.key.toLowerCase() === 'e') {
+                emergencyBtn.click();
+            }
+        });
+
+        // Initialize
+        updateUI();
+        logEvent('4-Way Traffic Controller initialized');
+    </script>
+</body>
+
+</html>
