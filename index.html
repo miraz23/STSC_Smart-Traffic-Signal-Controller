@@ -357,12 +357,16 @@
         // Lane selection: For horizontal roads (East/West), we need to use different lanes
         // West: top lane (lane-W-in) is outgoing (→ towards intersection)
         // East: bottom lane (lane-E-out) is outgoing (← towards intersection)
+        // North: use right lane (lane-N-out) - second lane, top to bottom
+        // South: use left lane (lane-S-in) - first lane, bottom to top
         const laneInEls = DIRECTIONS.map((d, i) => {
-            if (i === 2) { // East - use bottom lane (outgoing)
+            if (i === 0) { // North - use right lane (outgoing, top to bottom)
+                return document.getElementById(`lane-${DIR_SHORT[i]}-out`);
+            } else if (i === 2) { // East - use bottom lane (outgoing)
                 return document.getElementById(`lane-${DIR_SHORT[i]}-out`);
             } else if (i === 3) { // West - use top lane (outgoing)
                 return document.getElementById(`lane-${DIR_SHORT[i]}-in`);
-            } else { // North/South - use incoming lanes
+            } else { // South - use incoming lane
                 return document.getElementById(`lane-${DIR_SHORT[i]}-in`);
             }
         });
@@ -429,13 +433,15 @@
             const carOffset = (laneSize - carSize) / 2; // 5px to center 25px car in 35px lane
             
             if (isVertical) {
-                // North: stop line at bottom of road (near intersection)
-                // South: stop line at top of road (near intersection)
+                // North: stop line at top of road (near intersection) - right lane, top to bottom
+                // South: stop line at top of road (near intersection) - left lane, bottom to top
                 if (dir === 0) {
-                    car.style.top = `${200 - stopLineOffset}px`;
+                    // North: right lane, going from top to bottom
+                    car.style.top = `${stopLineOffset}px`;
                     car.style.left = `${carOffset}px`; // Center within the lane
                     car.style.transform = 'rotate(180deg)';
                 } else {
+                    // South: left lane, going from bottom to top
                     car.style.top = `${stopLineOffset}px`;
                     car.style.left = `${carOffset}px`; // Center within the lane
                     car.style.transform = 'rotate(0deg)';
@@ -471,11 +477,11 @@
             queue.forEach((car, index) => {
                 if (isVertical) {
                     if (dir === 0) {
-                        // North: cars move down (increase top value) - cars queue from bottom
-                        const targetY = 200 - stopLineOffset - (index * carSpacing);
-                        car.style.top = `${Math.max(targetY, 100)}px`;
+                        // North: right lane, cars move down (increase top value) - cars queue from top
+                        const targetY = stopLineOffset + (index * carSpacing);
+                        car.style.top = `${Math.min(targetY, 100)}px`;
                     } else {
-                        // South: cars move up (decrease top value) - cars queue from top
+                        // South: left lane, cars move up (decrease top value) - cars queue from top
                         const targetY = stopLineOffset + (index * carSpacing);
                         car.style.top = `${Math.min(targetY, 100)}px`;
                     }
@@ -519,13 +525,15 @@
             
             if (isVertical) {
                 if (dir === 0) {
-                    // North: going down through intersection (from bottom to top of screen)
-                    startPos = { top: currentTop, left: currentLeft };
-                    endPos = { top: -25, left: currentLeft };
-                } else {
-                    // South: going up through intersection (from top to bottom of screen)
+                    // North: right lane, going down through intersection (from top to bottom of screen)
                     startPos = { top: currentTop, left: currentLeft };
                     endPos = { top: roadLength + 25, left: currentLeft };
+                    car.style.transform = 'rotate(180deg)';
+                } else {
+                    // South: left lane, going up through intersection (from bottom to top of screen)
+                    startPos = { top: currentTop, left: currentLeft };
+                    endPos = { top: -25, left: currentLeft };
+                    car.style.transform = 'rotate(0deg)';
                 }
             } else {
                 if (dir === 2) {
