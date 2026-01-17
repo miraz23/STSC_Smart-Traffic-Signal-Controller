@@ -303,7 +303,7 @@
         const ALL_RED_DURATION = 1;
 
         // State
-        const queues = [3, 4, 2, 3];
+        const queues = [0, 0, 0, 0]; // Queue counts (will sync with carQueues)
         const arrivalRates = [0.6, 0.55, 0.4, 0.35];
         const served = [0, 0, 0, 0];
         const totalWait = [0, 0, 0, 0];
@@ -315,6 +315,10 @@
         let carIdCounter = 0;
         const recentCars = [];
         const ganttData = [[], [], [], []];
+
+        // Car queue management - stores actual car elements waiting
+        const carQueues = [[], [], [], []]; // Array of arrays, one per direction
+        const activeCars = []; // Cars currently moving through intersection
 
         let running = false;
         let simSpeed = 1;
@@ -350,9 +354,18 @@
             green: ['n-green', 's-green', 'e-green', 'w-green'].map(id => document.getElementById(id))
         };
 
-        const laneInEls = DIRECTIONS.map((d, i) =>
-            document.getElementById(`lane-${DIR_SHORT[i]}-in`)
-        );
+        // Lane selection: For horizontal roads (East/West), we need to use different lanes
+        // West: top lane (lane-W-in) is outgoing (→ towards intersection)
+        // East: bottom lane (lane-E-out) is outgoing (← towards intersection)
+        const laneInEls = DIRECTIONS.map((d, i) => {
+            if (i === 2) { // East - use bottom lane (outgoing)
+                return document.getElementById(`lane-${DIR_SHORT[i]}-out`);
+            } else if (i === 3) { // West - use top lane (outgoing)
+                return document.getElementById(`lane-${DIR_SHORT[i]}-in`);
+            } else { // North/South - use incoming lanes
+                return document.getElementById(`lane-${DIR_SHORT[i]}-in`);
+            }
+        });
         const laneOutEls = DIRECTIONS.map((d, i) =>
             document.getElementById(`lane-${DIR_SHORT[i]}-out`)
         );
@@ -372,12 +385,15 @@
             }
         }
 
-        function spawnCar(dir, isIncoming = true) {
-            const laneEl = isIncoming ? laneInEls[dir] : laneOutEls[dir];
+        // Create a car element and add it to the queue
+        function spawnCar(dir) {
+            const laneEl = laneInEls[dir];
             if (!laneEl) return;
 
             const car = document.createElement('div');
             car.className = 'car';
+            car.dataset.direction = dir;
+            car.dataset.arrivalTick = simTick;
             
             // Use car.png image instead of emoji
             const carImg = document.createElement('img');
@@ -387,68 +403,174 @@
             carImg.style.display = 'block';
             car.appendChild(carImg);
 
-            const isVertical = dir === 0 || dir === 1;
-            
-            // Apply rotation based on direction and lane
-            if (isVertical && (dir === 0 || dir === 1)) {
-                // North and South: right lanes rotated 180 degrees
-                if (laneEl.classList.contains('lane-v-right')) {
-                    car.style.transform = 'rotate(180deg)';
-                }
-            } else if (!isVertical && (dir === 2 || dir === 3)) {
-                // West and East: upper lane rotated 90 degrees clockwise, lower lane rotated 90 degrees anti-clockwise
-                if (laneEl.classList.contains('lane-h-top')) {
-                    car.style.transform = 'rotate(90deg)';
-                } else if (laneEl.classList.contains('lane-h-bottom')) {
-                    car.style.transform = 'rotate(-90deg)';
-                }
-            }
+            // Rotation will be set in positionCarAtStopLine
 
-            if (isIncoming) {
-                if (isVertical) {
-                    car.style.top = dir === 0 ? '100%' : '225px';
-                    car.style.left = Math.random() * 10 + 'px';
-                } else {
-                    car.style.left = (dir === 2 || dir === 3) ? '-25px' : '100%';
-                    car.style.top = Math.random() * 10 + 'px';
-                }
-            } else {
-                if (isVertical) {
-                    car.style.top = dir === 1 ? '-25px' : '50%';
-                    car.style.left = Math.random() * 10 + 'px';
-                } else {
-                    car.style.left = (dir === 2 || dir === 3) ? '225px' : '50%';
-                    car.style.top = Math.random() * 10 + 'px';
-                }
-            }
+            // Position car at the start of the lane (far from intersection)
+            // The car will be positioned at stop line by positionCarAtStopLine
+            // Initial positioning is handled there
 
             laneEl.appendChild(car);
+            
+            // Add to queue - car will wait here until light turns green
+            carQueues[dir].push(car);
+            
+            // Position car at stop line (intersection boundary)
+            positionCarAtStopLine(car, dir);
+        }
 
-            const start = performance.now();
-            const duration = isIncoming ? 1500 / simSpeed : 1000 / simSpeed;
+        // Position car at the stop line (intersection boundary)
+        // Cars are positioned relative to their lane element (which is 35px wide/high)
+        // Car image is 25px, so to center: (35 - 25) / 2 = 5px offset from edge
+        function positionCarAtStopLine(car, dir) {
+            const isVertical = dir === 0 || dir === 1;
+            const stopLineOffset = 80; // Distance from intersection center to stop line
+            const carSize = 25; // Car image size
+            const laneSize = 35; // Lane width/height
+            const carOffset = (laneSize - carSize) / 2; // 5px to center 25px car in 35px lane
+            
+            if (isVertical) {
+                // North: stop line at bottom of road (near intersection)
+                // South: stop line at top of road (near intersection)
+                if (dir === 0) {
+                    car.style.top = `${200 - stopLineOffset}px`;
+                    car.style.left = `${carOffset}px`; // Center within the lane
+                    car.style.transform = 'rotate(180deg)';
+                } else {
+                    car.style.top = `${stopLineOffset}px`;
+                    car.style.left = `${carOffset}px`; // Center within the lane
+                    car.style.transform = 'rotate(0deg)';
+                }
+            } else {
+                // Horizontal roads: East and West
+                // East: bottom lane (lane-E-out), stop line at left of road (near intersection)
+                // West: top lane (lane-W-in), stop line at right of road (near intersection)
+                if (dir === 2) {
+                    // East: bottom lane, going left (towards intersection)
+                    car.style.left = `${stopLineOffset}px`;
+                    car.style.top = `${carOffset}px`; // Center within the lane (5px from top of lane)
+                    car.style.transform = 'rotate(-90deg)';
+                } else {
+                    // West: top lane, going right (towards intersection)
+                    car.style.left = `${200 - stopLineOffset}px`;
+                    car.style.top = `${carOffset}px`; // Center within the lane (5px from top of lane)
+                    car.style.transform = 'rotate(90deg)';
+                }
+            }
+        }
 
+        // Move cars forward in queue when space opens up
+        function updateCarQueuePositions(dir) {
+            const queue = carQueues[dir];
+            const isVertical = dir === 0 || dir === 1;
+            const stopLineOffset = 80;
+            const carSpacing = 30; // Space between cars
+            const carSize = 25;
+            const laneSize = 35;
+            const carOffset = (laneSize - carSize) / 2; // 5px to center car in lane
+            
+            queue.forEach((car, index) => {
+                if (isVertical) {
+                    if (dir === 0) {
+                        // North: cars move down (increase top value) - cars queue from bottom
+                        const targetY = 200 - stopLineOffset - (index * carSpacing);
+                        car.style.top = `${Math.max(targetY, 100)}px`;
+                    } else {
+                        // South: cars move up (decrease top value) - cars queue from top
+                        const targetY = stopLineOffset + (index * carSpacing);
+                        car.style.top = `${Math.min(targetY, 100)}px`;
+                    }
+                    car.style.left = `${carOffset}px`; // Center within lane
+                } else {
+                    if (dir === 2) {
+                        // East: bottom lane, cars move left (decrease left value) - cars queue from right
+                        const targetX = stopLineOffset + (index * carSpacing);
+                        car.style.left = `${Math.min(targetX, 100)}px`;
+                        car.style.top = `${carOffset}px`; // Center within lane
+                    } else {
+                        // West: top lane, cars move right (increase left value) - cars queue from left
+                        const targetX = 200 - stopLineOffset - (index * carSpacing);
+                        car.style.left = `${Math.max(targetX, 100)}px`;
+                        car.style.top = `${carOffset}px`; // Center within lane
+                    }
+                }
+            });
+        }
+
+        // Move a car through the intersection (only when light is green)
+        function moveCarThroughIntersection(dir) {
+            const queue = carQueues[dir];
+            if (queue.length === 0) return null;
+            
+            const car = queue.shift();
+            activeCars.push({ element: car, direction: dir, startTime: performance.now() });
+            
+            const isVertical = dir === 0 || dir === 1;
+            const duration = 1500 / simSpeed; // Time to cross intersection
+            const startTime = performance.now();
+            
+            // Get current position (at stop line)
+            const currentTop = parseFloat(car.style.top) || 0;
+            const currentLeft = parseFloat(car.style.left) || 0;
+            
+            // Calculate start and end positions for crossing intersection
+            let startPos, endPos;
+            const intersectionCenter = 100; // Center of intersection
+            const roadLength = 200;
+            
+            if (isVertical) {
+                if (dir === 0) {
+                    // North: going down through intersection (from bottom to top of screen)
+                    startPos = { top: currentTop, left: currentLeft };
+                    endPos = { top: -25, left: currentLeft };
+                } else {
+                    // South: going up through intersection (from top to bottom of screen)
+                    startPos = { top: currentTop, left: currentLeft };
+                    endPos = { top: roadLength + 25, left: currentLeft };
+                }
+            } else {
+                if (dir === 2) {
+                    // East: going left through intersection (from right to left of screen)
+                    startPos = { top: currentTop, left: currentLeft };
+                    endPos = { top: currentTop, left: -25 };
+                } else {
+                    // West: going right through intersection (from left to right of screen)
+                    startPos = { top: currentTop, left: currentLeft };
+                    endPos = { top: currentTop, left: roadLength + 25 };
+                }
+            }
+            
             function animate(now) {
-                const t = (now - start) / duration;
+                const elapsed = now - startTime;
+                const t = Math.min(elapsed / duration, 1);
+                
+                if (isVertical) {
+                    const y = startPos.top + (endPos.top - startPos.top) * t;
+                    car.style.top = `${y}px`;
+                } else {
+                    const x = startPos.left + (endPos.left - startPos.left) * t;
+                    car.style.left = `${x}px`;
+                }
+                
                 if (t >= 1) {
-                    if (car.parentElement) car.parentElement.removeChild(car);
+                    // Car has crossed intersection
+                    if (car.parentElement) {
+                        car.parentElement.removeChild(car);
+                    }
+                    // Remove from active cars
+                    const index = activeCars.findIndex(ac => ac.element === car);
+                    if (index >= 0) activeCars.splice(index, 1);
                     return;
                 }
-
-                if (isVertical) {
-                    const startY = dir === 0 ? (isIncoming ? 225 : -25) : (isIncoming ? 225 : -25);
-                    const endY = isIncoming ? 100 : (dir === 0 ? 225 : 100);
-                    const y = startY + (endY - startY) * t;
-                    car.style.top = y + 'px';
-                } else {
-                    const startX = (dir === 2 || dir === 3) ? (isIncoming ? -25 : 225) : (isIncoming ? 225 : 100);
-                    const endX = isIncoming ? 100 : ((dir === 2 || dir === 3) ? -25 : -25);
-                    const x = startX + (endX - startX) * t;
-                    car.style.left = x + 'px';
-                }
-
+                
                 requestAnimationFrame(animate);
             }
+            
             requestAnimationFrame(animate);
+            
+            // Update queue positions for remaining cars
+            updateCarQueuePositions(dir);
+            
+            return car;
         }
 
         function poissonArrival(rate) {
@@ -456,43 +578,46 @@
         }
 
         function pickNextRR() {
-            for (let i = 0; i < NUM_DIRECTIONS; i++) {
-                const idx = (rrIndex + i) % NUM_DIRECTIONS;
-                if (queues[idx] > 0) {
-                    rrIndex = (idx + 1) % NUM_DIRECTIONS;
-                    return idx;
-                }
-            }
+            // Round robin: cycle through all directions regardless of queue
+            // This ensures fair time allocation
+            const next = rrIndex;
             rrIndex = (rrIndex + 1) % NUM_DIRECTIONS;
-            return rrIndex;
+            return next;
         }
 
         function serveVehicle(dir) {
-            if (queues[dir] > 0) {
-                const arrivalTime = simTick - ageTicks[dir];
+            // Only serve if there are cars in the queue AND light is green
+            if (carQueues[dir].length > 0 && currentGreen === dir && !isYellow && !isAllRed) {
+                const car = carQueues[dir][0];
+                const arrivalTick = parseInt(car.dataset.arrivalTick) || simTick;
+                const waitTime = simTick - arrivalTick;
                 const startTime = simTick;
-                const completionTime = simTick + 1;
-                const waitTime = ageTicks[dir];
-                const tat = completionTime - arrivalTime;
-
-                queues[dir]--;
+                
+                // Move car through intersection (removes from queue)
+                moveCarThroughIntersection(dir);
+                
+                // Update statistics
+                queues[dir] = carQueues[dir].length; // Sync with actual queue
                 served[dir]++;
                 totalWait[dir] += waitTime;
+                const tat = waitTime + 1; // Turnaround time
                 totalTAT[dir] += tat;
-                ageTicks[dir] = 0;
+                
+                // Reset age for this direction if queue is now empty
+                if (carQueues[dir].length === 0) {
+                    ageTicks[dir] = 0;
+                }
 
                 const carId = `${DIR_SHORT[dir]}${carIdCounter++}`;
                 recentCars.unshift({
                     id: carId,
                     dir: DIR_SHORT[dir],
-                    arrival: arrivalTime,
+                    arrival: arrivalTick,
                     start: startTime,
                     wait: waitTime,
                     tat: tat
                 });
                 if (recentCars.length > 5) recentCars.pop();
-
-                spawnCar(dir, false);
 
                 return carId;
             }
@@ -526,7 +651,9 @@
         function updateMetrics() {
             const prefixes = ['n', 's', 'e', 'w'];
             for (let i = 0; i < NUM_DIRECTIONS; i++) {
-                document.getElementById(`m-${prefixes[i]}-queue`).textContent = queues[i];
+                // Queue count should match actual car elements waiting
+                const actualQueueCount = carQueues[i].length;
+                document.getElementById(`m-${prefixes[i]}-queue`).textContent = actualQueueCount;
                 document.getElementById(`m-${prefixes[i]}-served`).textContent = served[i];
                 const avgWait = served[i] > 0 ? (totalWait[i] / served[i]).toFixed(1) : '0.0';
                 const avgTAT = served[i] > 0 ? (totalTAT[i] / served[i]).toFixed(1) : '0.0';
@@ -596,21 +723,32 @@
 
             simTick++;
 
+            // Spawn new cars based on arrival rates
             for (let i = 0; i < NUM_DIRECTIONS; i++) {
                 const arrivals = poissonArrival(arrivalRates[i]);
-                if (arrivals > 0) {
-                    queues[i] += arrivals;
-                    if (queues[i] > 50) queues[i] = 50;
-                    spawnCar(i, true);
+                if (arrivals > 0 && carQueues[i].length < 50) {
+                    // Spawn actual car elements
+                    for (let j = 0; j < arrivals; j++) {
+                        if (carQueues[i].length < 50) {
+                            spawnCar(i);
+                        }
+                    }
+                    // Sync queue count
+                    queues[i] = carQueues[i].length;
                 }
 
-                if (i !== currentGreen && queues[i] > 0) {
+                // Update queue positions for waiting cars
+                updateCarQueuePositions(i);
+
+                // Age waiting cars (only if not currently green)
+                if (i !== currentGreen && carQueues[i].length > 0) {
                     ageTicks[i]++;
                 }
 
                 dynamicPrio[i] = staticPrio[i] + ageTicks[i] * 0.1;
             }
 
+            // Handle ALL-RED phase
             if (isAllRed) {
                 allRedRemaining--;
                 if (allRedRemaining <= 0) {
@@ -618,7 +756,7 @@
                     const next = pickNextRR();
                     currentGreen = next;
                     greenRemaining = timeQuantum;
-                    logEvent(`${DIRECTIONS[next]} light turned GREEN`, 'success');
+                    logEvent(`${DIRECTIONS[next]} light turned GREEN (Round Robin)`, 'success');
                 }
 
                 for (let i = 0; i < NUM_DIRECTIONS; i++) {
@@ -629,6 +767,7 @@
                 return;
             }
 
+            // Handle YELLOW phase - cars must stop
             if (isYellow) {
                 yellowRemaining--;
                 if (yellowRemaining <= 0) {
@@ -650,24 +789,29 @@
                 return;
             }
 
+            // Handle GREEN phase - cars can proceed
             if (currentGreen === -1 || greenRemaining <= 0) {
                 if (currentGreen >= 0) {
+                    // Current green phase expired, switch to yellow
                     isYellow = true;
                     yellowRemaining = YELLOW_DURATION;
                     logEvent(`${DIRECTIONS[currentGreen]} light turned YELLOW`, 'warning');
                 } else {
+                    // No current green, pick next using round robin
                     const next = pickNextRR();
                     currentGreen = next;
                     greenRemaining = timeQuantum;
-                    logEvent(`${DIRECTIONS[next]} light turned GREEN (initial)`, 'success');
+                    logEvent(`${DIRECTIONS[next]} light turned GREEN (Round Robin)`, 'success');
                 }
             } else {
+                // Green light is active - serve one car per tick
                 const carId = serveVehicle(currentGreen);
                 if (carId) {
-                    logEvent(`Car ${carId} served at ${DIRECTIONS[currentGreen]}`, 'success');
+                    logEvent(`Car ${carId} crossed intersection at ${DIRECTIONS[currentGreen]}`, 'success');
                 }
                 greenRemaining--;
 
+                // Update Gantt chart
                 for (let i = 0; i < NUM_DIRECTIONS; i++) {
                     if (i === currentGreen) {
                         ganttData[i].push({ tick: simTick, state: 'GREEN', car: carId });
@@ -726,12 +870,55 @@
                 ageTicks[i] = 0;
                 dynamicPrio[i] = staticPrio[i];
                 ganttData[i] = [];
+                
+                // Clear car queues - remove all car elements
+                carQueues[i].forEach(car => {
+                    if (car.parentElement) {
+                        car.parentElement.removeChild(car);
+                    }
+                });
+                carQueues[i] = [];
             }
+            
+            // Clear active cars
+            activeCars.forEach(ac => {
+                if (ac.element.parentElement) {
+                    ac.element.parentElement.removeChild(ac.element);
+                }
+            });
+            activeCars.length = 0;
+            
             recentCars.length = 0;
             carIdCounter = 0;
             currentGreen = -1;
             greenRemaining = 0;
+            isYellow = false;
+            isAllRed = false;
+            yellowRemaining = 0;
+            allRedRemaining = 0;
+            rrIndex = 0;
             updateUI();
+        });
+
+        exportLogBtn.addEventListener('click', () => {
+            const csv = ['Timestamp,Tick,Message,Level'];
+            eventLog.forEach(log => {
+                csv.push(`"${log.timestamp}",${log.tick},"${log.message}",${log.level}`);
+            });
+            const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `traffic-log-${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            logEvent('Event log exported to CSV', 'success');
+        });
+
+        clearEventLogBtn.addEventListener('click', () => {
+            logEl.innerHTML = '';
+            eventLog = [];
+            logEvent('Event log cleared', 'info');
         });
 
         window.addEventListener('keydown', (e) => {
