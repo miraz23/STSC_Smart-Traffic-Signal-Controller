@@ -1,461 +1,550 @@
-const fs = require('fs');
-const path = require('path');
+const NUM_DIRECTIONS = 4;
+const DIRECTIONS = ['NORTH', 'SOUTH', 'EAST', 'WEST'];
+const DIR_SHORT = ['N', 'S', 'E', 'W'];
+const DEFAULT_QUANTUM = 4;
+const YELLOW_DURATION = 2;
+const ALL_RED_DURATION = 1;
 
-const NUM_APPROACH = 4;
-const DEFAULT_TICK_MS = 800;
-const JSON_PATH = path.join(__dirname, './traffic_data.json');
-const GANTT_LEN = 100;
+const queues = [0, 0, 0, 0];
+const arrivalRates = [0.6, 0.55, 0.4, 0.35];
+const served = [0, 0, 0, 0];
+const totalWait = [0, 0, 0, 0];
+const totalTAT = [0, 0, 0, 0];
+const ageTicks = [0, 0, 0, 0];
+const staticPrio = [4, 3, 2, 1];
+const dynamicPrio = [4, 3, 2, 1];
 
-const Direction = {
-    NORTH: 0,
-    SOUTH: 1,
-    EAST: 2,
-    WEST: 3
+let carIdCounter = 0;
+const recentCars = [];
+const ganttData = [[], [], [], []];
+
+const carQueues = [[], [], [], []];
+const activeCars = [];
+
+let running = false;
+let simSpeed = 1;
+let timeQuantum = DEFAULT_QUANTUM;
+let currentGreen = -1;
+let greenRemaining = 0;
+let yellowRemaining = 0;
+let allRedRemaining = 0;
+let isYellow = false;
+let isAllRed = false;
+let rrIndex = 0;
+let simTick = 0;
+let tickInterval = null;
+
+const startStopBtn = document.getElementById('start-stop');
+const statusPill = document.getElementById('status-pill');
+const speedRange = document.getElementById('speed-range');
+const speedDisplay = document.getElementById('speed-display');
+const quantumRange = document.getElementById('quantum-range');
+const quantumDisplay = document.getElementById('quantum-display');
+const exportLogBtn = document.getElementById('export-log');
+const clearEventLogBtn = document.getElementById('clear-event-log');
+const logEl = document.getElementById('log');
+
+let eventLog = [];
+
+const lightEls = {
+    red: ['n-red', 's-red', 'e-red', 'w-red'].map(id => document.getElementById(id)),
+    yellow: ['n-yellow', 's-yellow', 'e-yellow', 'w-yellow'].map(id => document.getElementById(id)),
+    green: ['n-green', 's-green', 'e-green', 'w-green'].map(id => document.getElementById(id))
 };
 
-const DirectionNames = ['NORTH', 'SOUTH', 'EAST', 'WEST'];
-
-const SchedulerType = {
-    S_RR: 0,
-    S_STATIC: 1,
-    S_DYNAMIC: 2,
-    S_HYBRID: 3
-};
-
-const SchedulerNames = ['Round-Robin', 'Static-Priority', 'Dynamic-Priority', 'Hybrid'];
-
-// Enhanced Car class with all timing metrics
-class Car {
-    constructor(id, direction, arrivalTick) {
-        this.id = id;
-        this.direction = direction;
-        this.arrival_tick = arrivalTick;
-        this.burst_time = 1;
-        this.start_tick = -1;
-        this.completion_tick = -1;
-        this.waiting_time = 0;
-        this.turnaround_time = 0;
-        this.response_time = 0;
-        this.completed = false;
-        this.lane = Math.random() < 0.5 ? 'lane1' : 'lane2'; // Two-way lanes
+const laneInEls = DIRECTIONS.map((d, i) => {
+    if (i === 0) {
+        return document.getElementById(`lane-${DIR_SHORT[i]}-out`);
+    } else if (i === 2) {
+        return document.getElementById(`lane-${DIR_SHORT[i]}-out`);
+    } else if (i === 3) {
+        return document.getElementById(`lane-${DIR_SHORT[i]}-in`);
+    } else {
+        return document.getElementById(`lane-${DIR_SHORT[i]}-in`);
     }
+});
+const laneOutEls = DIRECTIONS.map((d, i) =>
+    document.getElementById(`lane-${DIR_SHORT[i]}-out`)
+);
 
-    computeMetrics() {
-        if (this.completed && this.start_tick >= 0) {
-            this.waiting_time = this.start_tick - this.arrival_tick;
-            this.turnaround_time = this.completion_tick - this.arrival_tick;
-            this.response_time = this.start_tick - this.arrival_tick;
-        }
+function logEvent(message, level = 'info') {
+    const timestamp = new Date().toLocaleTimeString();
+    const logItem = document.createElement('div');
+    logItem.className = `log-item ${level}`;
+    logItem.textContent = `[${timestamp}] Tick ${simTick}: ${message}`;
+
+    logEl.insertBefore(logItem, logEl.firstChild);
+
+    eventLog.unshift({ timestamp, tick: simTick, message, level });
+
+    if (logEl.children.length > 100) {
+        logEl.removeChild(logEl.lastChild);
     }
 }
 
-class Approach {
-    constructor(id, name) {
-        this.id = id;
-        this.name = name;
-        this.queue_len = 0;
-        this.arrival_rate = 0;
-        this.static_prio = 0;
-        this.dynamic_prio = 0;
-        this.served = 0;
-        this.total_wait = 0;
-        this.age_ticks = 0;
-        this.starvation_count = 0;
-        this.cars_queue = [];
-        this.completed_cars = [];
-        this.car_counter = 0;
+function spawnCar(dir) {
+    const laneEl = laneInEls[dir];
+    if (!laneEl) return;
 
-        // Two-way road lanes
-        this.lane1_queue = [];
-        this.lane2_queue = [];
-    }
+    const car = document.createElement('div');
+    car.className = 'car';
+    car.dataset.direction = dir;
+    car.dataset.arrivalTick = simTick;
+    
+    const carImg = document.createElement('img');
+    carImg.src = 'car.png';
+    carImg.style.width = '25px';
+    carImg.style.height = '25px';
+    carImg.style.display = 'block';
+    car.appendChild(carImg);
 
-    addCar(tick) {
-        const car = new Car(
-            `${this.name.charAt(0)}${this.car_counter++}`,
-            this.id,
-            tick
-        );
+    laneEl.appendChild(car);
+    
+    carQueues[dir].push(car);
+    
+    positionCarAtStopLine(car, dir);
+}
 
-        this.cars_queue.push(car);
-
-        // Add to lane queues for visualization
-        if (car.lane === 'lane1') {
-            this.lane1_queue.push(car);
+function positionCarAtStopLine(car, dir) {
+    const isVertical = dir === 0 || dir === 1;
+    const stopLineOffset = 80;
+    const carSize = 25;
+    const laneSize = 35;
+    const carOffset = (laneSize - carSize) / 2;
+    
+    if (isVertical) {
+        if (dir === 0) {
+            car.style.top = `${stopLineOffset}px`;
+            car.style.left = `${carOffset}px`;
+            car.style.transform = 'rotate(180deg)';
         } else {
-            this.lane2_queue.push(car);
+            car.style.top = `${stopLineOffset}px`;
+            car.style.left = `${carOffset}px`;
+            car.style.transform = 'rotate(0deg)';
         }
-
-        return car;
-    }
-
-    serveCar(tick) {
-        if (this.cars_queue.length === 0) return null;
-
-        const car = this.cars_queue.shift();
-        car.start_tick = tick;
-        car.completion_tick = tick + car.burst_time;
-        car.completed = true;
-        car.computeMetrics();
-
-        this.completed_cars.push(car);
-        this.served++;
-        this.total_wait += car.waiting_time;
-
-        // Remove from lane queue
-        if (car.lane === 'lane1') {
-            this.lane1_queue = this.lane1_queue.filter(c => c.id !== car.id);
+    } else {
+        if (dir === 2) {
+            car.style.left = `${stopLineOffset}px`;
+            car.style.top = `${carOffset}px`;
+            car.style.transform = 'rotate(-90deg)';
         } else {
-            this.lane2_queue = this.lane2_queue.filter(c => c.id !== car.id);
+            car.style.left = `${200 - stopLineOffset}px`;
+            car.style.top = `${carOffset}px`;
+            car.style.transform = 'rotate(90deg)';
         }
-
-        return car;
-    }
-
-    getAverageMetrics() {
-        if (this.completed_cars.length === 0) {
-            return {
-                avg_waiting: 0,
-                avg_turnaround: 0,
-                avg_response: 0,
-                total_burst: 0
-            };
-        }
-
-        const total_waiting = this.completed_cars.reduce((sum, c) => sum + c.waiting_time, 0);
-        const total_turnaround = this.completed_cars.reduce((sum, c) => sum + c.turnaround_time, 0);
-        const total_response = this.completed_cars.reduce((sum, c) => sum + c.response_time, 0);
-        const total_burst = this.completed_cars.reduce((sum, c) => sum + c.burst_time, 0);
-
-        return {
-            avg_waiting: (total_waiting / this.completed_cars.length).toFixed(2),
-            avg_turnaround: (total_turnaround / this.completed_cars.length).toFixed(2),
-            avg_response: (total_response / this.completed_cars.length).toFixed(2),
-            total_burst
-        };
     }
 }
 
-const approaches = [];
-let sim_tick = 0;
-let scheduler = SchedulerType.S_DYNAMIC;
-let time_quantum_ticks = 4;
-let current_green = -1;
-let green_remaining = 0;
-let rr_index = 0;
-const gantt = [];
-let tick_ms = DEFAULT_TICK_MS;
-const YELLOW_DELAY_TICKS = 2;
-let yellow_remaining = 0;
-let is_yellow = false;
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+function updateCarQueuePositions(dir) {
+    const queue = carQueues[dir];
+    const isVertical = dir === 0 || dir === 1;
+    const stopLineOffset = 80;
+    const carSpacing = 30;
+    const carSize = 25;
+    const laneSize = 35;
+    const carOffset = (laneSize - carSize) / 2;
+    
+    queue.forEach((car, index) => {
+        if (isVertical) {
+            if (dir === 0) {
+                const targetY = stopLineOffset + (index * carSpacing);
+                car.style.top = `${Math.min(targetY, 100)}px`;
+            } else {
+                const targetY = stopLineOffset + (index * carSpacing);
+                car.style.top = `${Math.min(targetY, 100)}px`;
+            }
+            car.style.left = `${carOffset}px`;
+        } else {
+            if (dir === 2) {
+                const targetX = stopLineOffset + (index * carSpacing);
+                car.style.left = `${Math.min(targetX, 100)}px`;
+                car.style.top = `${carOffset}px`;
+            } else {
+                const targetX = 200 - stopLineOffset - (index * carSpacing);
+                car.style.left = `${Math.max(targetX, 100)}px`;
+                car.style.top = `${carOffset}px`;
+            }
+        }
+    });
 }
 
-function poissonTick(ratePerSec) {
-    const mean = ratePerSec * (tick_ms / 1000.0);
-    if (mean <= 0.0) return 0;
-
-    const L = Math.exp(-mean);
-    let p = 1.0;
-    let k = 0;
-
-    do {
-        p *= Math.random();
-        k++;
-    } while (p > L && k < 50);
-
-    return k - 1;
+function moveCarThroughIntersection(dir) {
+    const queue = carQueues[dir];
+    if (queue.length === 0) return null;
+    
+    const car = queue.shift();
+    activeCars.push({ element: car, direction: dir, startTime: performance.now() });
+    
+    const isVertical = dir === 0 || dir === 1;
+    const duration = 1500 / simSpeed;
+    const startTime = performance.now();
+    
+    const currentTop = parseFloat(car.style.top) || 0;
+    const currentLeft = parseFloat(car.style.left) || 0;
+    
+    let startPos, endPos;
+    const intersectionCenter = 100;
+    const roadLength = 200;
+    
+    if (isVertical) {
+        if (dir === 0) {
+            startPos = { top: currentTop, left: currentLeft };
+            endPos = { top: roadLength + 25, left: currentLeft };
+            car.style.transform = 'rotate(180deg)';
+        } else {
+            startPos = { top: currentTop, left: currentLeft };
+            endPos = { top: -25, left: currentLeft };
+            car.style.transform = 'rotate(0deg)';
+        }
+    } else {
+        if (dir === 2) {
+            startPos = { top: currentTop, left: currentLeft };
+            endPos = { top: currentTop, left: -25 };
+        } else {
+            startPos = { top: currentTop, left: currentLeft };
+            endPos = { top: currentTop, left: roadLength + 25 };
+        }
+    }
+    
+    function animate(now) {
+        const elapsed = now - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        
+        if (isVertical) {
+            const y = startPos.top + (endPos.top - startPos.top) * t;
+            car.style.top = `${y}px`;
+        } else {
+            const x = startPos.left + (endPos.left - startPos.left) * t;
+            car.style.left = `${x}px`;
+        }
+        
+        if (t >= 1) {
+            if (car.parentElement) {
+                car.parentElement.removeChild(car);
+            }
+            const index = activeCars.findIndex(ac => ac.element === car);
+            if (index >= 0) activeCars.splice(index, 1);
+            return;
+        }
+        
+        requestAnimationFrame(animate);
+    }
+    
+    requestAnimationFrame(animate);
+    
+    updateCarQueuePositions(dir);
+    
+    return car;
 }
 
-function pickRR() {
-    for (let i = 0; i < NUM_APPROACH; i++) {
-        const idx = (rr_index + i) % NUM_APPROACH;
-        if (approaches[idx].cars_queue.length > 0) {
-            rr_index = (idx + 1) % NUM_APPROACH;
+function poissonArrival(rate) {
+    return Math.random() < rate * 0.5 ? 1 : 0;
+}
+
+function pickNextRR() {
+    for (let i = 0; i < NUM_DIRECTIONS; i++) {
+        const idx = (rrIndex + i) % NUM_DIRECTIONS;
+        if (carQueues[idx].length > 0) {
+            rrIndex = (idx + 1) % NUM_DIRECTIONS;
             return idx;
         }
     }
-    rr_index = (rr_index + 1) % NUM_APPROACH;
-    return rr_index;
+    return -1;
 }
 
-function pickStatic() {
-    let best = -1;
-    let best_p = -999;
-
-    for (let i = 0; i < NUM_APPROACH; i++) {
-        if (approaches[i].cars_queue.length <= 0) continue;
-        if (approaches[i].static_prio > best_p) {
-            best_p = approaches[i].static_prio;
-            best = i;
+function serveVehicle(dir) {
+    if (carQueues[dir].length > 0 && currentGreen === dir && !isYellow && !isAllRed) {
+        const car = carQueues[dir][0];
+        const arrivalTick = parseInt(car.dataset.arrivalTick) || simTick;
+        const waitTime = simTick - arrivalTick;
+        const startTime = simTick;
+        
+        moveCarThroughIntersection(dir);
+        
+        queues[dir] = carQueues[dir].length;
+        served[dir]++;
+        totalWait[dir] += waitTime;
+        const tat = waitTime + 1;
+        totalTAT[dir] += tat;
+        
+        if (carQueues[dir].length === 0) {
+            ageTicks[dir] = 0;
         }
-    }
 
-    return (best === -1) ? 0 : best;
+        const carId = `${DIR_SHORT[dir]}${carIdCounter++}`;
+        const completionTime = arrivalTick + tat;
+        const responseTime = startTime - arrivalTick;
+        recentCars.unshift({
+            id: carId,
+            dir: DIR_SHORT[dir],
+            arrival: arrivalTick,
+            start: startTime,
+            wait: waitTime,
+            tat: tat,
+            completion: completionTime,
+            response: responseTime
+        });
+        if (recentCars.length > 5) recentCars.pop();
+
+        return carId;
+    }
+    return null;
 }
 
-function pickDynamic() {
-    let best = -1;
-    let best_val = -1e9;
-
-    for (let i = 0; i < NUM_APPROACH; i++) {
-        approaches[i].dynamic_prio = approaches[i].static_prio + approaches[i].age_ticks * 0.2;
-        if (approaches[i].cars_queue.length <= 0) continue;
-        if (approaches[i].dynamic_prio > best_val) {
-            best_val = approaches[i].dynamic_prio;
-            best = i;
-        }
-    }
-
-    if (best === -1) best = 0;
-    return best;
-}
-
-function pickHybrid() {
-    for (let i = 0; i < NUM_APPROACH; i++) {
-        if (approaches[i].age_ticks > 50 && approaches[i].cars_queue.length > 0) {
-            approaches[i].dynamic_prio += 3.0;
-            approaches[i].starvation_count++;
-        }
-    }
-    return pickDynamic();
-}
-
-async function writeJSON() {
-    const data = {
-        tick: sim_tick,
-        current_green: current_green,
-        current_direction: current_green >= 0 ? DirectionNames[current_green] : 'NONE',
-        is_yellow: is_yellow,
-        scheduler: SchedulerNames[scheduler],
-        gantt: gantt.slice(-GANTT_LEN),
-        approaches: approaches.map(a => {
-            const metrics = a.getAverageMetrics();
-            return {
-                id: a.id,
-                direction: a.name,
-                queue_len: a.cars_queue.length,
-                lane1_cars: a.lane1_queue.map(c => ({
-                    id: c.id,
-                    arrival: c.arrival_tick,
-                    waiting: sim_tick - c.arrival_tick
-                })),
-                lane2_cars: a.lane2_queue.map(c => ({
-                    id: c.id,
-                    arrival: c.arrival_tick,
-                    waiting: sim_tick - c.arrival_tick
-                })),
-                arrival_rate: parseFloat(a.arrival_rate.toFixed(2)),
-                static_prio: a.static_prio,
-                dynamic_prio: parseFloat(a.dynamic_prio.toFixed(2)),
-                served: a.served,
-                age: a.age_ticks,
-                starvation: a.starvation_count,
-                avg_waiting: parseFloat(metrics.avg_waiting),
-                avg_turnaround: parseFloat(metrics.avg_turnaround),
-                avg_response: parseFloat(metrics.avg_response),
-                total_burst: metrics.total_burst,
-                completed_cars: a.completed_cars.slice(-20).map(c => ({
-                    id: c.id,
-                    arrival: c.arrival_tick,
-                    start: c.start_tick,
-                    completion: c.completion_tick,
-                    burst: c.burst_time,
-                    waiting: c.waiting_time,
-                    turnaround: c.turnaround_time,
-                    response: c.response_time
-                }))
-            };
-        })
-    };
-
-    try {
-        fs.writeFileSync(JSON_PATH, JSON.stringify(data, null, 2));
-    } catch (err) {
-        // Silently fail
+function resetLights() {
+    for (let i = 0; i < NUM_DIRECTIONS; i++) {
+        lightEls.red[i].className = 'traffic-light light-off rounded-full';
+        lightEls.yellow[i].className = 'traffic-light light-off rounded-full';
+        lightEls.green[i].className = 'traffic-light light-off rounded-full';
     }
 }
 
-async function jsonWriterLoop() {
-    while (true) {
-        await sleep(200);
-        await writeJSON();
-    }
-}
+function updateGantt() {
+    for (let i = 0; i < NUM_DIRECTIONS; i++) {
+        const timeline = document.getElementById(`gantt-${DIR_SHORT[i]}`);
+        timeline.innerHTML = '';
 
-async function simulationLoop() {
-    while (true) {
-        await sleep(tick_ms);
-        sim_tick++;
-
-        // Generate arrivals
-        for (let i = 0; i < NUM_APPROACH; i++) {
-            const arrivals = poissonTick(approaches[i].arrival_rate);
-            for (let j = 0; j < arrivals; j++) {
-                if (approaches[i].cars_queue.length < 50) {
-                    approaches[i].addCar(sim_tick);
-                }
+        ganttData[i].slice(-50).forEach(block => {
+            const div = document.createElement('div');
+            div.className = `gantt-block gantt-${block.state.toLowerCase()}`;
+            if (block.car) {
+                div.title = `Tick ${block.tick}: ${block.car}`;
             }
-
-            // Age waiting cars
-            if (i !== current_green && approaches[i].cars_queue.length > 0) {
-                approaches[i].age_ticks++;
-            }
-
-        }
-
-        // Handle yellow light
-        if (is_yellow) {
-            yellow_remaining--;
-            if (yellow_remaining <= 0) {
-                is_yellow = false;
-            }
-            gantt.push({
-                tick: sim_tick,
-                direction: current_green,
-                state: 'YELLOW',
-                car: null
-            });
-            continue;
-        }
-
-        // Pick next green
-        if (current_green === -1 || green_remaining <= 0) {
-            let next = 0;
-
-            switch (scheduler) {
-                case SchedulerType.S_RR:
-                    next = pickRR();
-                    break;
-                case SchedulerType.S_STATIC:
-                    next = pickStatic();
-                    break;
-                case SchedulerType.S_DYNAMIC:
-                    next = pickDynamic();
-                    break;
-                case SchedulerType.S_HYBRID:
-                    next = pickHybrid();
-                    break;
-            }
-
-            if (next !== current_green && current_green >= 0) {
-                is_yellow = true;
-                yellow_remaining = YELLOW_DELAY_TICKS;
-                continue;
-            }
-
-            current_green = next;
-            green_remaining = time_quantum_ticks;
-        }
-
-        // Serve one car
-        const servedCar = approaches[current_green].serveCar(sim_tick);
-        approaches[current_green].age_ticks = 0;
-
-        green_remaining--;
-        gantt.push({
-            tick: sim_tick,
-            direction: current_green,
-            state: 'GREEN',
-            car: servedCar ? servedCar.id : null
+            timeline.appendChild(div);
         });
     }
 }
 
-function computeAndPrintMetrics() {
-    console.log('\n========== Traffic Light Status ==========');
-    console.log(`Tick: ${sim_tick}`);
-    console.log(`Scheduler: ${SchedulerNames[scheduler]}`);
-    console.log(`Current Light: ${current_green >= 0 ? DirectionNames[current_green] : 'NONE'} ${is_yellow ? '(YELLOW)' : '(GREEN)'}`);
-    console.log('\n--- Approach Statistics ---');
-
-    for (let i = 0; i < NUM_APPROACH; i++) {
-        const a = approaches[i];
-        const metrics = a.getAverageMetrics();
-
-        console.log(`\n${a.name}:`);
-        console.log(`  Queue: ${a.cars_queue.length} (Lane1: ${a.lane1_queue.length}, Lane2: ${a.lane2_queue.length})`);
-        console.log(`  Served: ${a.served} | Priority: ${a.dynamic_prio.toFixed(1)}`);
-        console.log(`  Avg Waiting: ${metrics.avg_waiting} | Avg Turnaround: ${metrics.avg_turnaround}`);
-        console.log(`  Avg Response: ${metrics.avg_response} | Total Burst: ${metrics.total_burst}`);
+function updateMetrics() {
+    const prefixes = ['n', 's', 'e', 'w'];
+    for (let i = 0; i < NUM_DIRECTIONS; i++) {
+        const actualQueueCount = carQueues[i].length;
+        document.getElementById(`m-${prefixes[i]}-queue`).textContent = actualQueueCount;
+        document.getElementById(`m-${prefixes[i]}-served`).textContent = served[i];
+        const avgWait = served[i] > 0 ? (totalWait[i] / served[i]).toFixed(1) : '0.0';
+        const avgTAT = served[i] > 0 ? (totalTAT[i] / served[i]).toFixed(1) : '0.0';
+        document.getElementById(`m-${prefixes[i]}-wait`).textContent = avgWait;
+        document.getElementById(`m-${prefixes[i]}-tat`).textContent = avgTAT;
+        document.getElementById(`m-${prefixes[i]}-prio`).textContent = dynamicPrio[i].toFixed(1);
     }
 
-    console.log('\n==========================================\n');
+    const carsTbody = document.getElementById('cars-tbody');
+    if (recentCars.length === 0) {
+        carsTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No cars yet</td></tr>';
+    } else {
+        carsTbody.innerHTML = recentCars.map(car => `
+            <tr>
+                <td class="font-semibold">${car.id}</td>
+                <td>${car.dir}</td>
+                <td>${car.arrival}</td>
+                <td>${car.start}</td>
+                <td>${car.wait}</td>
+                <td>${car.tat}</td>
+                <td>${car.completion}</td>
+                <td>${car.response}</td>
+            </tr>
+        `).join('');
+    }
 }
 
-async function metricsLoop() {
-    while (true) {
-        await sleep(3000);
-        computeAndPrintMetrics();
+function updateUI() {
+    resetLights();
+
+    if (isAllRed) {
+        for (let i = 0; i < NUM_DIRECTIONS; i++) {
+            lightEls.red[i].classList.add('red-on');
+        }
+    } else if (isYellow && currentGreen >= 0) {
+        lightEls.yellow[currentGreen].classList.add('yellow-on');
+        for (let i = 0; i < NUM_DIRECTIONS; i++) {
+            if (i !== currentGreen) lightEls.red[i].classList.add('red-on');
+        }
+    } else if (currentGreen >= 0) {
+        lightEls.green[currentGreen].classList.add('green-on', 'active-pulse');
+        for (let i = 0; i < NUM_DIRECTIONS; i++) {
+            if (i !== currentGreen) lightEls.red[i].classList.add('red-on');
+        }
+    } else {
+        for (let i = 0; i < NUM_DIRECTIONS; i++) {
+            lightEls.red[i].classList.add('red-on');
+        }
     }
+
+    const phase = isAllRed ? 'ALL-RED' : isYellow ? 'YELLOW' : currentGreen >= 0 ? `${DIRECTIONS[currentGreen]} GREEN` : 'INIT';
+    statusPill.textContent = running ? phase : 'Stopped';
+    statusPill.classList.toggle('status-running', running);
+
+    const totalServed = served.reduce((a, b) => a + b, 0);
+    const totalWaitTime = totalWait.reduce((a, b) => a + b, 0);
+
+    document.getElementById('current-dir').textContent = currentGreen >= 0 ? DIRECTIONS[currentGreen] : 'NONE';
+    document.getElementById('total-served').textContent = totalServed;
+    document.getElementById('avg-wait').textContent = totalServed > 0 ? (totalWaitTime / totalServed).toFixed(1) : '0.0';
+    document.getElementById('sim-tick').textContent = simTick;
+
+    updateMetrics();
+    updateGantt();
 }
 
-async function main() {
-    console.log('4-Way Traffic Light Control System with Two-Way Roads');
-    console.log('====================================================\n');
+function simTickFn() {
+    if (!running) return;
 
-    const args = process.argv.slice(2);
+    simTick++;
 
-    if (args.length >= 1) {
-        const schedArg = args[0].toLowerCase();
-        if (schedArg === 'rr') scheduler = SchedulerType.S_RR;
-        else if (schedArg === 'static') scheduler = SchedulerType.S_STATIC;
-        else if (schedArg === 'dynamic') scheduler = SchedulerType.S_DYNAMIC;
-        else if (schedArg === 'hybrid') scheduler = SchedulerType.S_HYBRID;
-    }
-
-    if (args.length >= 2) {
-        const t = parseInt(args[1]);
-        if (t > 50) tick_ms = t;
-    }
-
-    if (args.length >= 3) {
-        const q = parseInt(args[2]);
-        if (q > 0) time_quantum_ticks = q;
-    }
-
-    console.log(`Configuration:`);
-    console.log(`  Scheduler: ${SchedulerNames[scheduler]}`);
-    console.log(`  Tick Duration: ${tick_ms}ms`);
-    console.log(`  Time Quantum: ${time_quantum_ticks} ticks`);
-    console.log(`  Yellow Light Delay: ${YELLOW_DELAY_TICKS} ticks\n`);
-
-    for (let i = 0; i < NUM_APPROACH; i++) {
-        const app = new Approach(i, DirectionNames[i]);
-
-        switch (i) {
-            case Direction.NORTH:
-                app.arrival_rate = 0.6;
-                app.static_prio = 4;
-                break;
-            case Direction.SOUTH:
-                app.arrival_rate = 0.55;
-                app.static_prio = 3;
-                break;
-            case Direction.EAST:
-                app.arrival_rate = 0.4;
-                app.static_prio = 2;
-                break;
-            case Direction.WEST:
-                app.arrival_rate = 0.35;
-                app.static_prio = 1;
-                break;
+    for (let i = 0; i < NUM_DIRECTIONS; i++) {
+        const arrivals = poissonArrival(arrivalRates[i]);
+        if (arrivals > 0 && carQueues[i].length < 50) {
+            for (let j = 0; j < arrivals; j++) {
+                if (carQueues[i].length < 50) {
+                    spawnCar(i);
+                }
+            }
+            queues[i] = carQueues[i].length;
         }
 
-        app.dynamic_prio = app.static_prio;
-        approaches.push(app);
+        updateCarQueuePositions(i);
+
+        if (i !== currentGreen && carQueues[i].length > 0) {
+            ageTicks[i]++;
+        }
+
+        dynamicPrio[i] = staticPrio[i] + ageTicks[i] * 0.1;
     }
 
-    console.log('Starting simulation...\n');
+    if (isAllRed) {
+        allRedRemaining--;
+        if (allRedRemaining <= 0) {
+            isAllRed = false;
+            const next = pickNextRR();
+            if (next >= 0) {
+                currentGreen = next;
+                greenRemaining = timeQuantum;
+                logEvent(`${DIRECTIONS[next]} light turned GREEN (Round Robin)`, 'success');
+            } else {
+                currentGreen = -1;
+                logEvent('All queues empty, waiting for arrivals', 'info');
+            }
+        }
 
-    jsonWriterLoop();
-    simulationLoop();
-    metricsLoop();
+        for (let i = 0; i < NUM_DIRECTIONS; i++) {
+            ganttData[i].push({ tick: simTick, state: 'RED', car: null });
+        }
+
+        updateUI();
+        return;
+    }
+
+    if (isYellow) {
+        yellowRemaining--;
+        if (yellowRemaining <= 0) {
+            isYellow = false;
+            isAllRed = true;
+            allRedRemaining = ALL_RED_DURATION;
+            logEvent(`Entering ALL-RED clearance phase`, 'warning');
+        }
+
+        for (let i = 0; i < NUM_DIRECTIONS; i++) {
+            if (i === currentGreen) {
+                ganttData[i].push({ tick: simTick, state: 'YELLOW', car: null });
+            } else {
+                ganttData[i].push({ tick: simTick, state: 'RED', car: null });
+            }
+        }
+
+        updateUI();
+        return;
+    }
+
+    if (currentGreen === -1 || greenRemaining <= 0) {
+        if (currentGreen >= 0) {
+            isYellow = true;
+            yellowRemaining = YELLOW_DURATION;
+            logEvent(`${DIRECTIONS[currentGreen]} light turned YELLOW`, 'warning');
+        } else {
+            const next = pickNextRR();
+            if (next >= 0) {
+                currentGreen = next;
+                greenRemaining = timeQuantum;
+                logEvent(`${DIRECTIONS[next]} light turned GREEN (Round Robin)`, 'success');
+            } else {
+                isAllRed = true;
+                allRedRemaining = ALL_RED_DURATION;
+                logEvent('All queues empty, entering ALL-RED state', 'info');
+            }
+        }
+    } else {
+        const carId = serveVehicle(currentGreen);
+        if (carId) {
+            logEvent(`Car ${carId} crossed intersection at ${DIRECTIONS[currentGreen]}`, 'success');
+        }
+        greenRemaining--;
+
+        for (let i = 0; i < NUM_DIRECTIONS; i++) {
+            if (i === currentGreen) {
+                ganttData[i].push({ tick: simTick, state: 'GREEN', car: carId });
+            } else {
+                ganttData[i].push({ tick: simTick, state: 'RED', car: null });
+            }
+        }
+    }
+
+    updateUI();
 }
 
-main().catch(err => {
-    console.error('Error:', err);
-    process.exit(1);
+startStopBtn.addEventListener('click', () => {
+    running = !running;
+    if (running) {
+        startStopBtn.textContent = 'Stop';
+        logEvent('Simulation started', 'success');
+        tickInterval = setInterval(simTickFn, 1000 / simSpeed);
+    } else {
+        startStopBtn.textContent = 'Start';
+        logEvent('Simulation stopped', 'warning');
+        if (tickInterval) clearInterval(tickInterval);
+    }
+    updateUI();
 });
+
+speedRange.addEventListener('input', (e) => {
+    simSpeed = parseFloat(e.target.value);
+    speedDisplay.textContent = simSpeed + 'x';
+    if (tickInterval) {
+        clearInterval(tickInterval);
+        tickInterval = setInterval(simTickFn, 1000 / simSpeed);
+    }
+});
+
+quantumRange.addEventListener('input', (e) => {
+    timeQuantum = parseInt(e.target.value);
+    quantumDisplay.textContent = timeQuantum + ' ticks';
+});
+
+exportLogBtn.addEventListener('click', () => {
+    const csv = ['Timestamp,Tick,Message,Level'];
+    eventLog.forEach(log => {
+        csv.push(`"${log.timestamp}",${log.tick},"${log.message}",${log.level}`);
+    });
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `traffic-log-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    logEvent('Event log exported to CSV', 'success');
+});
+
+clearEventLogBtn.addEventListener('click', () => {
+    logEl.innerHTML = '';
+    eventLog = [];
+    logEvent('Event log cleared', 'info');
+});
+
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        startStopBtn.click();
+        e.preventDefault();
+    }
+});
+
+updateUI();
