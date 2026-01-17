@@ -303,6 +303,7 @@ async function simulationLoop() {
             if (i !== current_green && approaches[i].cars_queue.length > 0) {
                 approaches[i].age_ticks++;
             }
+
         }
 
         // Handle yellow light

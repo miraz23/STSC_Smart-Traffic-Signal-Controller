@@ -186,6 +186,10 @@ body {
     font-size: 20px;
     transition: none;
     z-index: 10;
+    transform-origin: center center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .intersection-center {
